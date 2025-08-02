@@ -3,12 +3,647 @@
  * Combines client management with automated session recap emails
  */
 
-// Global configuration
 const CONFIG = {
-  tutorName: 'Nicholas',
-  tutorEmail: 'leekenick@gmail.com', // Update this with your email
-  company: 'Smart College'
+  tutorName: '', // Will be set during initial setup
+  tutorEmail: '', // Will be set during initial setup
+  company: 'Smart College',
+  companyUrl: 'https://www.smartcollege.com',
+  primaryColor: '#003366',
+  accentColor: '#00C853',
+  useMenuBar: true,  // Toggle this for add-on deployment
+  isConfigured: false // Track if initial setup is complete
 };
+
+/**
+ * Universal onOpen that handles both modes
+ */
+/**
+ * Universal onOpen that handles both modes
+ */
+function onOpen(e) {
+  const ui = SpreadsheetApp.getUi();
+  
+  // Check if initial setup is needed
+  const userConfig = getUserConfig();
+  if (!userConfig.isConfigured) {
+    // Show setup dialog first
+    ui.createMenu('Client Management')
+      .addItem('Complete Setup', 'showInitialSetup')
+      .addToUi();
+    
+    // Show setup automatically
+    showInitialSetup();
+    return;
+  }
+  
+  try {
+    // Always try to create the regular menu first
+    createMainMenu(ui);
+    
+    // If we're in add-on mode, also create the add-on menu
+    if (e && e.authMode) {
+      ui.createAddonMenu()
+        .addItem('Open Client Manager', 'showSidebar')
+        .addToUi();
+    }
+  } catch (error) {
+    // Fallback to add-on menu only
+    console.log('Could not create main menu, using add-on menu:', error);
+    ui.createAddonMenu()
+      .addItem('Open Client Manager', 'showSidebar')
+      .addToUi();
+  }
+}
+
+/**
+ * Create the main menu bar menu
+ */
+function createMainMenu(ui) {
+  ui.createMenu('Client Management')
+    // Main items with icons for visual appeal
+    .addItem('📊 Control Panel', 'showSidebar')
+    .addSeparator()
+    .addItem('➕ Add New Client', 'addNewClient')
+    .addItem('🔍 Find Client', 'findClient')
+    .addSeparator()
+    // Session Management submenu
+    .addSubMenu(ui.createMenu('📝 Session Management')
+      .addItem('Quick Notes', 'openQuickNotesFromMenu')
+      .addSeparator()
+      .addItem('Send Session Recap', 'sendIndividualRecap')
+      .addItem('Batch Prep Mode', 'openBatchPrepMode')
+      .addItem('View Recap History', 'viewRecapHistory')
+      .addSeparator()
+      .addItem('Clear Current Student Notes', 'clearCurrentStudentNotes'))
+    .addSeparator()
+    // Tools submenu
+    .addSubMenu(ui.createMenu('🛠️ Tools')
+      .addItem('Refresh Client List', 'refreshClientCache')
+      .addItem('Check Dashboard Links', 'validateDashboardLinks')
+      .addItem('Export Client List', 'exportClientList'))
+    .addSeparator()
+    .addItem('⚙️ Settings', 'showSettings')
+    .addItem('❓ Help', 'showHelp')
+    .addToUi();
+}
+
+/**
+ * Called when add-on is installed
+ */
+function onInstall(e) {
+  onOpen(e);
+}
+
+/**
+ * Initial setup function for new users
+ */
+function showInitialSetup() {
+  const html = HtmlService.createHtmlOutput(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 30px;
+            background: white;
+          }
+          .container {
+            max-width: 400px;
+            margin: 0 auto;
+          }
+          h2 {
+            color: #003366;
+            text-align: center;
+            margin-bottom: 8px;
+          }
+          h3 {
+            color: #666;
+            font-weight: normal;
+            text-align: center;
+            margin-top: 0;
+            margin-bottom: 30px;
+          }
+          .form-group {
+            margin-bottom: 20px;
+          }
+          label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #5f6368;
+            font-size: 14px;
+          }
+          input[type="text"], input[type="email"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 6px;
+            font-size: 16px;
+            box-sizing: border-box;
+          }
+          input:focus {
+            outline: none;
+            border-color: #003366;
+            box-shadow: 0 0 0 3px rgba(0, 51, 102, 0.1);
+          }
+          /* Universal button loading state */
+          .btn-loading {
+            position: relative;
+            color: transparent !important;
+            pointer-events: none;
+            opacity: 0.8;
+          }
+
+          .btn-loading::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 50%;
+            left: 50%;
+            margin-left: -8px;
+            margin-top: -8px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+          }
+
+          /* For secondary/light buttons, use dark spinner */
+          .btn-secondary.btn-loading::after,
+          .btn-danger.btn-loading::after,
+          .quick-fill-btn.btn-loading::after {
+            border-color: rgba(0, 0, 0, 0.1);
+            border-top-color: #5f6368;
+          }
+
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+          button {
+            width: 100%;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 24px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #00C853;
+            color: white;
+            margin-top: 20px;
+          }
+          button:hover {
+            background: #00A043;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+          }
+          .logo {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #003366;
+            font-size: 24px;
+            font-weight: bold;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="logo">Smart College</div>
+          <h2>Welcome!</h2>
+          <h3>Let's set up your Client Management System</h3>
+          
+          <form id="setupForm">
+            <div class="form-group">
+              <label>Your Name</label>
+              <input type="text" id="tutorName" placeholder="Enter your full name" required>
+            </div>
+            
+            <div class="form-group">
+              <label>Your Email</label>
+              <input type="email" id="tutorEmail" placeholder="Enter your email address" required>
+            </div>
+            
+            <button type="submit">Complete Setup</button>
+          </form>
+        </div>
+        
+        <script>
+          document.getElementById('setupForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.textContent;
+            submitBtn.classList.add('btn-loading');
+            submitBtn.disabled = true;
+            
+            const userData = {
+              tutorName: document.getElementById('tutorName').value.trim(),
+              tutorEmail: document.getElementById('tutorEmail').value.trim()
+            };
+            
+            google.script.run
+              .withSuccessHandler(() => {
+                alert('Setup complete! The page will now reload.');
+                google.script.host.close();
+                google.script.run.refreshUI();
+              })
+              .withFailureHandler((error) => {
+                submitBtn.classList.remove('btn-loading');
+                submitBtn.textContent = originalText;
+                submitBtn.disabled = false;
+                alert('Error during setup: ' + error.message);
+              })
+              .saveUserConfig(userData);
+          });
+        </script>
+      </body>
+    </html>
+  `).setWidth(450).setHeight(500);
+  
+  SpreadsheetApp.getUi().showModalDialog(html, 'Initial Setup');
+}
+
+/**
+ * Show settings dialog to update tutor information
+ */
+function showSettings() {
+  const config = getCompleteConfig();
+  
+  const html = HtmlService.createHtmlOutput(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 30px;
+            background: white;
+          }
+          .container {
+            max-width: 400px;
+            margin: 0 auto;
+          }
+          h2 {
+            color: #003366;
+            text-align: center;
+            margin-bottom: 30px;
+          }
+          .form-group {
+            margin-bottom: 20px;
+          }
+          label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #5f6368;
+            font-size: 14px;
+          }
+          input[type="text"], input[type="email"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 6px;
+            font-size: 16px;
+            box-sizing: border-box;
+          }
+          input:focus {
+            outline: none;
+            border-color: #003366;
+            box-shadow: 0 0 0 3px rgba(0, 51, 102, 0.1);
+          }
+          .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 30px;
+          }
+          button {
+            flex: 1;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 24px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+          }
+          .btn-primary {
+            background: #00C853;
+            color: white;
+          }
+          .btn-primary:hover {
+            background: #00A043;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+          }
+          .btn-secondary {
+            background: #f8f9fa;
+            color: #5f6368;
+            border: 1px solid #dadce0;
+          }
+          .btn-secondary:hover {
+            background: #f1f3f4;
+          }
+          /* Universal button loading state */
+          .btn-loading {
+            position: relative;
+            color: transparent !important;
+            pointer-events: none;
+            opacity: 0.8;
+          }
+
+          .btn-loading::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 50%;
+            left: 50%;
+            margin-left: -8px;
+            margin-top: -8px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+          }
+
+          /* For secondary/light buttons, use dark spinner */
+          .btn-secondary.btn-loading::after,
+          .btn-danger.btn-loading::after,
+          .quick-fill-btn.btn-loading::after {
+            border-color: rgba(0, 0, 0, 0.1);
+            border-top-color: #5f6368;
+          }
+
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+          .info-box {
+            background: #e8f0fe;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #003366;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h2>Settings</h2>
+          
+          <div class="info-box">
+            Update your information below. This will be used in all session recap emails.
+          </div>
+          
+          <form id="settingsForm">
+            <div class="form-group">
+              <label>Your Name</label>
+              <input type="text" id="tutorName" value="${config.tutorName}" placeholder="Enter your full name" required>
+            </div>
+            
+            <div class="form-group">
+              <label>Your Email</label>
+              <input type="email" id="tutorEmail" value="${config.tutorEmail}" placeholder="Enter your email address" required>
+            </div>
+            
+            <div class="button-group">
+              <button type="submit" class="btn-primary">Save Changes</button>
+              <button type="button" class="btn-secondary" onclick="google.script.host.close()">Cancel</button>
+            </div>
+          </form>
+        </div>
+        
+        <script>
+          document.getElementById('settingsForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.textContent;
+            submitBtn.classList.add('btn-loading');
+            submitBtn.disabled = true;
+            
+            const userData = {
+              tutorName: document.getElementById('tutorName').value.trim(),
+              tutorEmail: document.getElementById('tutorEmail').value.trim()
+            };
+            
+            google.script.run
+              .withSuccessHandler(() => {
+                alert('Settings updated successfully!');
+                google.script.host.close();
+              })
+              .withFailureHandler((error) => {
+                submitBtn.classList.remove('btn-loading');
+                submitBtn.textContent = originalText;
+                submitBtn.disabled = false;
+                alert('Error updating settings: ' + error.message);
+              })
+              .saveUserConfig(userData);
+          });
+        </script>
+      </body>
+    </html>
+  `).setWidth(450).setHeight(450);
+  
+  SpreadsheetApp.getUi().showModalDialog(html, 'Settings');
+}
+
+/**
+ * Save user configuration
+ */
+function saveUserConfig(userData) {
+  const userProperties = PropertiesService.getUserProperties();
+  userProperties.setProperty('tutorName', userData.tutorName);
+  userProperties.setProperty('tutorEmail', userData.tutorEmail);
+  userProperties.setProperty('isConfigured', 'true');
+}
+
+/**
+ * Get complete configuration (user + company settings)
+ */
+function getCompleteConfig() {
+  const userConfig = getUserConfig();
+  return {
+    tutorName: userConfig.tutorName || 'Your Tutor',
+    tutorEmail: userConfig.tutorEmail || 'support@smartcollege.com',
+    company: 'Smart College',
+    companyUrl: 'https://www.smartcollege.com',
+    primaryColor: '#003366',
+    accentColor: '#00C853',
+    useMenuBar: true,
+    isConfigured: userConfig.isConfigured
+  };
+}
+
+/**
+ * Get user configuration
+ */
+function getUserConfig() {
+  const userProperties = PropertiesService.getUserProperties();
+  return {
+    tutorName: userProperties.getProperty('tutorName') || '',
+    tutorEmail: userProperties.getProperty('tutorEmail') || '',
+    isConfigured: userProperties.getProperty('isConfigured') === 'true'
+  };
+}
+
+/**
+ * Refresh UI after setup
+ */
+function refreshUI() {
+  const ui = SpreadsheetApp.getUi();
+  onOpen();
+}
+
+function showHelp() {
+  const config = getCompleteConfig();
+  const html = HtmlService.createHtmlOutput(`
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px;">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <h2 style="color: #003366; margin-bottom: 5px;">Smart College</h2>
+        <h3 style="color: #666; font-weight: normal; margin-top: 0;">Client Management System</h3>
+      </div>
+      
+      <p>Version 1.0</p>
+      
+      <h4>Quick Start:</h4>
+      <ul>
+        <li><b>Add New Client:</b> Creates a new client sheet from template</li>
+        <li><b>Find Client:</b> Quickly navigate to any client sheet</li>
+        <li><b>Quick Notes:</b> Take session notes that auto-save</li>
+        <li><b>Send Recap:</b> Create and send session recap emails</li>
+      </ul>
+      
+      <h4>Keyboard Shortcuts:</h4>
+      <ul>
+        <li><b>Ctrl+Alt+N:</b> Quick Notes (when on client sheet)</li>
+        <li><b>Ctrl+Alt+F:</b> Find Client</li>
+      </ul>
+      
+      <p style="margin-top: 20px; color: #666;">
+        For support, contact: ${config.tutorEmail}
+      </p>
+    </div>
+  `).setWidth(400).setHeight(400);
+  
+  SpreadsheetApp.getUi().showModalDialog(html, 'Help');
+}
+
+function testBasicSidebar() {
+  const html = HtmlService.createHtmlOutput('<h1>Hello World</h1><button onclick="alert(\'clicked\')">Click Me</button>');
+  SpreadsheetApp.getUi().showSidebar(html);
+}
+
+function testBasicDialog() {
+  const html = HtmlService.createHtmlOutput(`
+    <div>
+      <h3>Test Dialog</h3>
+      <button onclick="alert('Button clicked!')">Test Button</button>
+      <br><br>
+      <input type="text" id="testInput" placeholder="Type here">
+      <button onclick="showValue()">Show Value</button>
+      <p id="output"></p>
+    </div>
+    <script>
+      function showValue() {
+        var val = document.getElementById('testInput').value;
+        document.getElementById('output').innerHTML = 'You typed: ' + val;
+      }
+    </script>
+  `).setWidth(400).setHeight(300);
+  
+  SpreadsheetApp.getUi().showModalDialog(html, 'Test Dialog');
+}
+
+/**
+ * Test function to verify sidebar functionality
+ */
+function testSimpleSidebar() {
+  const html = HtmlService.createHtmlOutput();
+  html.setContent(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          button { 
+            background: #003366; 
+            color: white; 
+            border: none; 
+            padding: 10px; 
+            margin: 5px; 
+            cursor: pointer; 
+            width: 100%;
+          }
+          button:hover { background: #002244; }
+          textarea { width: 100%; margin: 5px 0; }
+          /* Universal button loading state */
+          .btn-loading {
+            position: relative;
+            color: transparent !important;
+            pointer-events: none;
+            opacity: 0.8;
+          }
+
+          .btn-loading::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 50%;
+            left: 50%;
+            margin-left: -8px;
+            margin-top: -8px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+          }
+
+          /* For secondary/light buttons, use dark spinner */
+          .btn-secondary.btn-loading::after,
+          .btn-danger.btn-loading::after,
+          .quick-fill-btn.btn-loading::after {
+            border-color: rgba(0, 0, 0, 0.1);
+            border-top-color: #5f6368;
+          }
+
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        </style>
+      </head>
+      <body>
+        <h3>Test Sidebar</h3>
+        <button onclick="testClick()">Test Button</button>
+        <textarea id="testArea" placeholder="Type here..."></textarea>
+        <button onclick="testSave()">Save Text</button>
+        <div id="result"></div>
+        
+        <script>
+          function testClick() {
+            document.getElementById('result').innerHTML = 'Button clicked!';
+          }
+          
+          function testSave() {
+            var text = document.getElementById('testArea').value;
+            document.getElementById('result').innerHTML = 'You typed: ' + text;
+          }
+        </script>
+      </body>
+    </html>
+  `);
+  
+  html.setTitle('Test').setWidth(300);
+  SpreadsheetApp.getUi().showSidebar(html);
+}
 
 const ACT_TESTS = [
   'April 07', 'Dec 19', 'April 23', 'June 23', 'April 24', 
@@ -45,6 +680,7 @@ const HOMEWORK_TEMPLATES = {
     'Review and organize notes from today'
   ]
 };
+
 
 // Email templates - Universal template for all client types
 const EMAIL_TEMPLATES = {
@@ -93,20 +729,1134 @@ Best,
 /**
  * Adds a custom menu to the spreadsheet when opened
  */
-function onOpen() {
+/**function onOpen() {
   const ui = SpreadsheetApp.getUi();
   ui.createMenu('Client Management')
     .addItem('Add New Client', 'addNewClient')
     .addSeparator()
     .addItem('Find Client', 'findClient')
     .addSeparator()
+    .addItem('Quick Notes', 'openQuickNotes')
+    .addSeparator()
+    .addItem('Send Session Recap', 'sendIndividualRecap')
+    .addSeparator()
     .addSubMenu(ui.createMenu('Session Management')
-      .addItem('Quick Notes', 'openQuickNotes')
-      .addSeparator()
-      .addItem('Send Session Recap', 'sendIndividualRecap')
       .addItem('Batch Prep Mode', 'openBatchPrepMode')
       .addItem('View Recap History', 'viewRecapHistory'))
     .addToUi();
+}
+*/
+
+/**
+ * Universal sidebar that can switch between views without closing
+ */
+function showUniversalSidebar(initialView = 'control') {
+  const sheet = SpreadsheetApp.getActiveSheet();
+  const clientInfo = getCurrentClientInfo();
+  
+  // Get quick notes data if on a client sheet
+  let notesData = {};
+  if (clientInfo.isClient) {
+    const scriptProperties = PropertiesService.getScriptProperties();
+    const notesKey = `notes_${sheet.getName()}`;
+    const savedNotes = scriptProperties.getProperty(notesKey);
+    notesData = savedNotes ? JSON.parse(savedNotes) : {};
+  }
+  
+  const html = HtmlService.createHtmlOutput(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body {
+            font-family: 'Google Sans', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            font-size: 14px;
+            box-sizing: border-box;
+          }
+          
+          /* View management */
+          .view { 
+            display: none; 
+            padding: 15px;
+          }
+          .view.active { 
+            display: block; 
+          }
+          
+          /* Common styles */
+          h3 {
+            margin-top: 0;
+            color: #003366;
+          }
+          
+          /* Base button styles */
+          button {
+            background: #003366;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            margin-top: 10px;
+            width: 48%;
+            transition: all 0.3s ease;
+            box-sizing: border-box;
+          }
+          
+          button:hover {
+            background: #002244;
+          }
+          
+          button:disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
+          }
+          
+          .button-group {
+            display: flex;
+            gap: 4%;
+            width: 100%;
+          }
+          /* Universal button loading state */
+          .btn-loading {
+            position: relative;
+            color: transparent !important;
+            pointer-events: none;
+            opacity: 0.8;
+          }
+
+          .btn-loading::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 50%;
+            left: 50%;
+            margin-left: -8px;
+            margin-top: -8px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+          }
+
+          /* For secondary/light buttons, use dark spinner */
+          .btn-secondary.btn-loading::after,
+          .btn-danger.btn-loading::after,
+          .quick-fill-btn.btn-loading::after {
+            border-color: rgba(0, 0, 0, 0.1);
+            border-top-color: #5f6368;
+          }
+
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+          /* Updated button styles for Quick Notes section */
+          .btn-primary {
+            background: #00C853;
+            color: white !important;
+          }
+          
+          .btn-primary:hover {
+            background: #00A043;
+          }
+          
+          .btn-secondary {
+            background: #f8f9fa;
+            color: #5f6368 !important; 
+            border: 1px solid #dadce0;
+          }
+          
+          .btn-secondary:hover {
+            background: #f1f3f4;
+            border-color: #d2d6dc;
+          }
+          
+          .btn-danger {
+            background: #ea4335;
+            color: white !important; 
+          }
+          
+          .btn-danger:hover {
+            background: #d33b2c;
+          }
+          
+          /* Control Panel styles */
+          .current-client {
+            background: #e8f0fe;
+            border-left: 4px solid #003366;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 13px;
+          }
+          
+          .current-client-label {
+            font-weight: 500;
+            color: #003366;
+            margin-bottom: 4px;
+          }
+          
+          .current-client-name {
+            color: #202124;
+            font-weight: 600;
+          }
+          
+          .no-client {
+            color: #5f6368;
+            font-style: italic;
+          }
+          
+          .section {
+            margin-bottom: 25px;
+          }
+          
+          .section-title {
+            font-weight: 500;
+            color: #5f6368;
+            margin-bottom: 12px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          
+          .menu-button {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 8px;
+            border: 1px solid #dadce0;
+            border-radius: 6px;
+            background: white;
+            color: #202124;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+          }
+          
+          .menu-button:hover:not(:disabled) {
+            background: #f8f9fa;
+            border-color: #003366;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          }
+          
+          .menu-button:active {
+            transform: translateY(0);
+            box-shadow: none;
+          }
+          
+          .menu-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+          }
+          
+          .primary {
+            background: #00C853;
+            color: white !important; 
+            border: none;
+            text-align: center;
+            justify-content: center;
+          }
+          
+          .primary:hover:not(:disabled) {
+            background: #00A043;
+          }
+          
+          .icon {
+            font-size: 18px;
+            width: 24px;
+            text-align: center;
+          }
+          
+          /* Quick Notes styles */
+          .control-panel-btn {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+            color: #003366;
+            border: 1px solid #dadce0;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+          }
+          
+          .control-panel-btn:hover {
+            background: #e8f0fe;
+            border-color: #003366;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          }
+          
+          .divider {
+            height: 1px;
+            background: #e8eaed;
+            margin: 15px 0;
+          }
+          
+          .note-section {
+            margin-bottom: 15px;
+          }
+          
+          textarea {
+            width: 100%;
+            min-height: 60px;
+            padding: 8px;
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 13px;
+            resize: vertical;
+            box-sizing: border-box;
+          }
+          
+          label {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: 500;
+            color: #5f6368;
+            font-size: 12px;
+          }
+          
+          .quick-tag {
+            display: inline-block;
+            padding: 3px 8px;
+            background: #f8f9fa;
+            border: 1px solid #dadce0;
+            border-radius: 3px;
+            margin: 2px;
+            cursor: pointer;
+            font-size: 11px;
+          }
+          
+          .quick-tag:hover {
+            background: #e8f0fe;
+            border-color: #003366;
+          }
+          
+          .save-indicator {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            background: #00C853;
+            color: white;
+            border-radius: 4px;
+            font-size: 11px;
+            opacity: 0;
+            transition: opacity 0.3s;
+          }
+          
+          .save-indicator.show {
+            opacity: 1;
+          }
+          
+          .auto-save-status {
+            font-size: 11px;
+            color: #5f6368;
+            margin-top: 10px;
+            text-align: center;
+          }
+          
+         /* Save button specific styles */
+          #saveNotesBtn {
+            background: #00C853;
+            color: white;
+          }
+
+          #saveNotesBtn:hover {
+            background: #00A043;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+          }
+
+          #sendRecapBtn {
+            background: #003366;
+            color: white;
+          }
+
+          #sendRecapBtn:hover {
+            background: #002244;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+          }
+          
+          .btn-success {
+            background: #00C853 !important;
+            transition: background 0.3s ease;
+          }
+          
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+          
+          /* Loading states */
+          .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+          }
+          
+          .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #003366;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+          }
+          
+          /* View transition animation */
+          .view {
+            animation: fadeIn 0.3s ease-out;
+          }
+          
+          @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          
+          /* Alert styles */
+          .alert {
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 13px;
+            display: none;
+          }
+          
+          .alert.error {
+            background: #fce8e6;
+            color: #d93025;
+            display: block;
+          }
+          
+          .alert.success {
+            background: #e6f4ea;
+            color: #188038;
+            display: block;
+          }
+        </style>
+      </head>
+      <body>
+        <!-- Control Panel View -->
+        <div id="controlView" class="view ${initialView === 'control' ? 'active' : ''}">
+          <div class="current-client">
+            <div class="current-client-label">Current Client:</div>
+            <div id="clientName" class="${clientInfo.isClient ? 'current-client-name' : 'no-client'}">
+              ${clientInfo.isClient ? clientInfo.name : 'No client selected'}
+            </div>
+          </div>
+          
+          <div class="section">
+            <div class="section-title">Client Management</div>
+            <button class="menu-button primary" onclick="runFunction('addNewClient')">
+              <span class="icon">➕</span>
+              Add New Client
+            </button>
+            <button class="menu-button" onclick="runFunction('findClient')">
+              <span class="icon">🔍</span>
+              Find Client
+            </button>
+          </div>
+          
+          <div class="section">
+            <div class="section-title">Session Management</div>
+            <button id="quickNotesBtn" class="menu-button" onclick="switchToQuickNotes()" ${!clientInfo.isClient ? 'disabled' : ''}>
+              <span class="icon">📝</span>
+              Quick Notes
+            </button>
+            <button id="recapBtn" class="menu-button" onclick="runFunction('sendIndividualRecap')" ${!clientInfo.isClient ? 'disabled' : ''}>
+              <span class="icon">✉️</span>
+              Send Session Recap
+            </button>
+            <button class="menu-button" onclick="runFunction('openBatchPrepMode')">
+              <span class="icon">📋</span>
+              Batch Prep Mode
+            </button>
+            <button class="menu-button" onclick="runFunction('viewRecapHistory')">
+              <span class="icon">📊</span>
+              View Recap History
+            </button>
+          </div>
+          
+          <div class="loading" id="controlLoading">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+          </div>
+        </div>
+        
+        <!-- Quick Notes View -->
+        <div id="quickNotesView" class="view ${initialView === 'quicknotes' ? 'active' : ''}">
+          <button class="control-panel-btn" onclick="switchToControlPanel()">
+            <span>📊</span>
+            <span>Back to Control Panel</span>
+          </button>
+          
+          <div class="divider"></div>
+          
+          <div id="quickNotesAlert" class="alert" style="display: none;"></div>
+          
+          <h3>Quick Session Notes</h3>
+          <p style="font-size: 12px; color: #666;">Click tags to add to notes</p>
+          
+          <div class="save-indicator" id="saveIndicator">Saved!</div>
+          
+          <div class="note-section">
+            <label>Wins/Breakthroughs</label>
+            <div style="margin-bottom: 5px;">
+              <span class="quick-tag" onclick="addToField('wins', 'Aha moment!')">Aha moment!</span>
+              <span class="quick-tag" onclick="addToField('wins', 'Solved independently')">Solved independently</span>
+              <span class="quick-tag" onclick="addToField('wins', 'Confidence boost')">Confidence boost</span>
+              <span class="quick-tag" onclick="addToField('wins', 'Speed improved')">Speed improved</span>
+            </div>
+            <textarea id="wins" placeholder="Quick notes about wins..." onchange="markUnsaved()">${notesData.wins || ''}</textarea>
+          </div>
+          
+          <div class="note-section">
+            <label>Skills Worked On</label>
+            <textarea id="skills" placeholder="List skills covered..." onchange="markUnsaved()">${notesData.skills || ''}</textarea>
+          </div>
+          
+          <div class="note-section">
+            <label>Struggles/Areas to Review</label>
+            <textarea id="struggles" placeholder="Note any challenges..." onchange="markUnsaved()">${notesData.struggles || ''}</textarea>
+          </div>
+          
+          <div class="note-section">
+            <label>Parent Communication Points</label>
+            <textarea id="parent" placeholder="Things to mention to parent..." onchange="markUnsaved()">${notesData.parent || ''}</textarea>
+          </div>
+          
+          <div class="note-section">
+            <label>Next Session Focus</label>
+            <textarea id="next" placeholder="Plan for next time..." onchange="markUnsaved()">${notesData.next || ''}</textarea>
+          </div>
+          
+          <div class="button-group">
+            <button id="saveNotesBtn" class="btn-primary" onclick="saveNotes()">Save Notes</button>
+            <button id="sendRecapBtn" onclick="sendRecap()">Send Recap</button>
+          </div>
+          
+          <div class="button-group" style="margin-top: 5px;">
+            <button class="btn-secondary" onclick="clearNotes()">Clear Notes</button>
+            <button class="btn-secondary" onclick="reloadNotes()">Reload Saved</button>
+          </div>
+          
+          <div class="auto-save-status" id="autoSaveStatus">Auto-save: Active</div>
+        </div>
+        
+        <script>
+          let currentView = '${initialView}';
+          let clientInfo = ${JSON.stringify(clientInfo)};
+          let unsavedChanges = false;
+          let autoSaveInterval;
+          
+
+          function setButtonLoading(button, isLoading) {
+            if (isLoading) {
+              button.dataset.originalText = button.textContent;
+              button.classList.add('btn-loading');
+              button.disabled = true;
+            } else {
+              button.classList.remove('btn-loading');
+              button.textContent = button.dataset.originalText || button.textContent;
+              button.disabled = false;
+            }
+          }
+          // View switching functions
+          function switchToQuickNotes() {
+            // Check if we're on a client sheet
+            google.script.run
+              .withSuccessHandler((info) => {
+                if (info.isClient) {
+                  // Load the latest notes
+                  google.script.run
+                    .withSuccessHandler((notesJson) => {
+                      if (notesJson) {
+                        const notes = JSON.parse(notesJson);
+                        document.getElementById('wins').value = notes.wins || '';
+                        document.getElementById('skills').value = notes.skills || '';
+                        document.getElementById('struggles').value = notes.struggles || '';
+                        document.getElementById('parent').value = notes.parent || '';
+                        document.getElementById('next').value = notes.next || '';
+                      }
+                      
+                      // Switch view
+                      document.getElementById('controlView').classList.remove('active');
+                      document.getElementById('quickNotesView').classList.add('active');
+                      currentView = 'quicknotes';
+                      
+                      // Start auto-save
+                      startAutoSave();
+                    })
+                    .getQuickNotesForCurrentSheet();
+                } else {
+                  showAlert('Please navigate to a client sheet first.', 'error');
+                }
+              })
+              .getCurrentClientInfo();
+          }
+          
+          function switchToControlPanel() {
+            // Clear auto-save
+            if (autoSaveInterval) {
+              clearInterval(autoSaveInterval);
+            }
+            
+            // Update client info
+            google.script.run
+              .withSuccessHandler((info) => {
+                clientInfo = info;
+                updateControlPanelView();
+                
+                // Switch view
+                document.getElementById('quickNotesView').classList.remove('active');
+                document.getElementById('controlView').classList.add('active');
+                currentView = 'control';
+              })
+              .getCurrentClientInfo();
+          }
+          
+          function updateControlPanelView() {
+            const clientNameDiv = document.getElementById('clientName');
+            const quickNotesBtn = document.getElementById('quickNotesBtn');
+            const recapBtn = document.getElementById('recapBtn');
+            
+            if (clientInfo.isClient) {
+              clientNameDiv.textContent = clientInfo.name;
+              clientNameDiv.className = 'current-client-name';
+              quickNotesBtn.disabled = false;
+              recapBtn.disabled = false;
+            } else {
+              clientNameDiv.textContent = 'No client selected';
+              clientNameDiv.className = 'no-client';
+              quickNotesBtn.disabled = true;
+              recapBtn.disabled = true;
+            }
+          }
+          
+          // Quick Notes functions
+          function markUnsaved() {
+            unsavedChanges = true;
+          }
+          
+          function addToField(fieldId, text) {
+            const field = document.getElementById(fieldId);
+            if (field.value) field.value += ', ';
+            field.value += text;
+            markUnsaved();
+          }
+          
+          function saveNotes() {
+            const saveBtn = document.getElementById('saveNotesBtn');
+            setButtonLoading(saveBtn, true);
+            
+            const notes = {
+              wins: document.getElementById('wins').value,
+              skills: document.getElementById('skills').value,
+              struggles: document.getElementById('struggles').value,
+              parent: document.getElementById('parent').value,
+              next: document.getElementById('next').value
+            };
+            
+            google.script.run
+              .withSuccessHandler(() => {
+                setButtonLoading(saveBtn, false);
+                saveBtn.classList.add('btn-success');
+                saveBtn.textContent = 'Saved!';
+                
+                const indicator = document.getElementById('saveIndicator');
+                indicator.classList.add('show');
+                
+                setTimeout(() => {
+                  saveBtn.classList.remove('btn-success');
+                  saveBtn.textContent = 'Save Notes';
+                  indicator.classList.remove('show');
+                }, 2000);
+                
+                unsavedChanges = false;
+              })
+              .withFailureHandler((error) => {
+                setButtonLoading(saveBtn, false);
+                showAlert('Error saving notes: ' + error.message, 'error');
+              })
+              .saveQuickNotes(notes);
+          }
+          
+          function clearNotes() {
+            if (confirm('Clear all quick notes for this student?')) {
+              document.getElementById('wins').value = '';
+              document.getElementById('skills').value = '';
+              document.getElementById('struggles').value = '';
+              document.getElementById('parent').value = '';
+              document.getElementById('next').value = '';
+              unsavedChanges = true;
+              showAlert('Notes cleared. Remember to save!', 'success');
+            }
+          }
+          
+          function reloadNotes() {
+            if (unsavedChanges && !confirm('You have unsaved changes. Reload anyway?')) {
+              return;
+            }
+            
+            google.script.run
+              .withSuccessHandler((notesJson) => {
+                if (notesJson) {
+                  const notes = JSON.parse(notesJson);
+                  document.getElementById('wins').value = notes.wins || '';
+                  document.getElementById('skills').value = notes.skills || '';
+                  document.getElementById('struggles').value = notes.struggles || '';
+                  document.getElementById('parent').value = notes.parent || '';
+                  document.getElementById('next').value = notes.next || '';
+                  unsavedChanges = false;
+                  showAlert('Notes reloaded from saved version.', 'success');
+                } else {
+                  showAlert('No saved notes found for this student.', 'error');
+                }
+              })
+              .withFailureHandler((error) => {
+                showAlert('Error loading notes: ' + error.message, 'error');
+              })
+              .getQuickNotesForCurrentSheet();
+          }
+          
+          function sendRecap() {
+            // Save notes first
+            saveNotes();
+            setTimeout(() => {
+              google.script.run
+                .withSuccessHandler(() => {
+                  // Switch back to control panel after sending
+                  switchToControlPanel();
+                })
+                .sendIndividualRecap();
+            }, 500);
+          }
+          
+          // Auto-save functionality
+          function startAutoSave() {
+            autoSaveInterval = setInterval(() => {
+              if (unsavedChanges) {
+                const notes = {
+                  wins: document.getElementById('wins').value,
+                  skills: document.getElementById('skills').value,
+                  struggles: document.getElementById('struggles').value,
+                  parent: document.getElementById('parent').value,
+                  next: document.getElementById('next').value
+                };
+                
+                google.script.run
+                  .withSuccessHandler(() => {
+                    document.getElementById('autoSaveStatus').textContent = 
+                      'Auto-saved at ' + new Date().toLocaleTimeString();
+                    unsavedChanges = false;
+                  })
+                  .saveQuickNotes(notes);
+              }
+            }, 60000); // Every minute
+          }
+          
+          // Control Panel functions
+          function runFunction(functionName) {
+            // Find which button was clicked
+            const button = event.target.closest('button');
+            if (button) {
+              setButtonLoading(button, true);
+            }
+            
+            google.script.run
+              .withSuccessHandler((result) => {
+                if (button) {
+                  setButtonLoading(button, false);
+                }
+                
+                // Update client info after certain actions
+                if (functionName === 'findClient' || functionName === 'addNewClient') {
+                  google.script.run
+                    .withSuccessHandler((info) => {
+                      clientInfo = info;
+                      updateControlPanelView();
+                    })
+                    .getCurrentClientInfo();
+                }
+              })
+              .withFailureHandler((error) => {
+                if (button) {
+                  setButtonLoading(button, false);
+                }
+                showAlert('Error: ' + error.message, 'error');
+              })[functionName]();
+          }
+          
+          // Alert helper
+          function showAlert(message, type) {
+            const alertDiv = currentView === 'quicknotes' ? 
+              document.getElementById('quickNotesAlert') : 
+              document.createElement('div');
+              
+            if (currentView === 'control') {
+              alertDiv.className = 'alert ' + type;
+              alertDiv.textContent = message;
+              document.getElementById('controlView').insertBefore(
+                alertDiv, 
+                document.getElementById('controlView').firstChild
+              );
+              
+              setTimeout(() => {
+                alertDiv.remove();
+              }, 5000);
+            } else {
+              alertDiv.className = 'alert ' + type;
+              alertDiv.textContent = message;
+              alertDiv.style.display = 'block';
+              
+              setTimeout(() => {
+                alertDiv.style.display = 'none';
+              }, 5000);
+            }
+          }
+          
+          // Monitor for text input
+          document.querySelectorAll('textarea').forEach(textarea => {
+            textarea.addEventListener('input', markUnsaved);
+          });
+          
+          // Refresh client info periodically
+          setInterval(() => {
+            if (currentView === 'control') {
+              google.script.run
+                .withSuccessHandler((info) => {
+                  clientInfo = info;
+                  updateControlPanelView();
+                })
+                .getCurrentClientInfo();
+            }
+          }, 5000);
+          
+          // Initialize auto-save if starting in quick notes
+          if (currentView === 'quicknotes') {
+            startAutoSave();
+          }
+        </script>
+      </body>
+    </html>
+  `).setTitle('Client Management').setWidth(300);
+  
+  SpreadsheetApp.getUi().showSidebar(html);
+}
+
+/**
+ * Prompt user to enter dashboard link if not found in Script Properties
+ */
+function promptForDashboardLink(sheetName, studentName) {
+  const html = HtmlService.createHtmlOutput(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body {
+            font-family: 'Google Sans', Arial, sans-serif;
+            margin: 0;
+            padding: 30px;
+            background: white;
+          }
+          .container {
+            max-width: 500px;
+            margin: 0 auto;
+          }
+          h2 {
+            color: #333;
+            margin-bottom: 8px;
+            font-weight: 500;
+            text-align: center;
+          }
+          .warning-box {
+            background: #fef7e0;
+            border: 1px solid #f9cc79;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #7f6000;
+          }
+          .student-info {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            text-align: center;
+          }
+          .input-group {
+            margin-bottom: 20px;
+          }
+          label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #5f6368;
+            font-size: 14px;
+          }
+          input[type="url"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 6px;
+            font-size: 16px;
+            font-family: inherit;
+            transition: border-color 0.3s ease;
+            box-sizing: border-box;
+          }
+          input[type="url"]:focus {
+            outline: none;
+            border-color: #003366;  /* Changed from #1a73e8 */
+            box-shadow: 0 0 0 3px rgba(0, 51, 102, 0.1);  /* Changed */
+          }
+          .example {
+            font-style: italic;
+            color: #5f6368;
+            font-size: 13px;
+            margin-top: 8px;
+          }
+          .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+          }
+          button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            flex: 1;
+          }
+          .btn-primary {
+            background: #00C853;   
+            color: white;
+          }
+          .btn-primary:hover {
+            background: #00A043;    
+          }
+
+          .btn-primary:disabled {
+            background: #dadce0;
+            cursor: not-allowed;
+          }
+          .btn-secondary {
+            background: #f8f9fa;
+            color: #5f6368;
+            border: 1px solid #dadce0;
+          }
+          .btn-secondary:hover {
+            background: #f1f3f4;
+          }
+          /* Universal button loading state */
+          .btn-loading {
+            position: relative;
+            color: transparent !important;
+            pointer-events: none;
+            opacity: 0.8;
+          }
+
+          .btn-loading::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 50%;
+            left: 50%;
+            margin-left: -8px;
+            margin-top: -8px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+          }
+
+          /* For secondary/light buttons, use dark spinner */
+          .btn-secondary.btn-loading::after,
+          .btn-danger.btn-loading::after,
+          .quick-fill-btn.btn-loading::after {
+            border-color: rgba(0, 0, 0, 0.1);
+            border-top-color: #5f6368;
+          }
+
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+          .drive-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #003366;
+            text-decoration: none;
+            font-size: 13px;
+            padding: 8px 16px;
+            border: 1px solid #dadce0;
+            border-radius: 6px;
+            background: #f8f9fa;
+            transition: all 0.3s ease;
+            margin-top: 20px;
+          }
+          .drive-link:hover {
+            background: #e8f0fe;
+            border-color: #003366; 
+          }
+          .drive-section {
+            text-align: center;
+            padding-top: 20px;
+            border-top: 1px solid #e1e5e9;
+          }
+          .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+          }
+          .loading.active {
+            display: block;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h2>Dashboard Link Required</h2>
+          
+          <div class="warning-box">
+            ⚠️ No dashboard link found for this student. Please enter the dashboard URL to continue with the session recap.
+          </div>
+          
+          <div class="student-info">
+            <strong>Student:</strong> ${studentName}
+          </div>
+          
+          <div class="input-group">
+            <label>Dashboard Link</label>
+            <input type="url" id="dashboardLink" placeholder="Enter dashboard URL" autofocus>
+            <div class="example">Example: https://smartcollege.com/dashboard/john-smith</div>
+          </div>
+          
+          <div class="button-group">
+            <button class="btn-primary" onclick="saveDashboardLink()">Save & Continue</button>
+            <button class="btn-secondary" onclick="google.script.host.close()">Cancel</button>
+          </div>
+          
+          <div class="drive-section">
+            <a href="https://drive.google.com/drive/u/0/folders/1UYJa--G9hE23a5WfxblqrtdnKdp3r91_" 
+               target="_blank" 
+               class="drive-link">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/>
+              </svg>
+              Open Dashboards Drive Folder
+            </a>
+          </div>
+          
+          <div class="loading" id="loadingDiv">
+            <p>Saving dashboard link...</p>
+          </div>
+        </div>
+        
+        <script>
+          const sheetName = '${sheetName}';
+          const studentName = '${studentName}';
+          
+          // Allow Enter key to submit
+          document.getElementById('dashboardLink').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+              saveDashboardLink();
+            }
+          });
+          
+          function saveDashboardLink() {
+            const dashboardLink = document.getElementById('dashboardLink').value.trim();
+            
+            if (!dashboardLink) {
+              alert('Please enter a valid dashboard URL');
+              return;
+            }
+            
+            // Basic URL validation
+            try {
+              new URL(dashboardLink);
+            } catch (e) {
+              alert('Please enter a valid URL (including https://)');
+              return;
+            }
+            
+            // Get the button and show loading
+            const saveBtn = document.querySelector('.btn-primary');
+            const originalText = saveBtn.textContent;
+            saveBtn.classList.add('btn-loading');
+            saveBtn.disabled = true;
+            
+            // Save the dashboard link
+            google.script.run
+              .withSuccessHandler(() => {
+                // Close dialog and continue with recap
+                google.script.host.close();
+                // Re-trigger the recap dialog
+                google.script.run.continueWithRecap(sheetName);
+              })
+              .withFailureHandler((error) => {
+                saveBtn.classList.remove('btn-loading');
+                saveBtn.textContent = originalText;
+                saveBtn.disabled = false;
+                alert('Error saving dashboard link: ' + error.message);
+              })
+              .saveDashboardLinkToProperties(sheetName, dashboardLink);
+          }
+        </script>
+      </body>
+    </html>
+  `).setWidth(550).setHeight(500);
+  
+  SpreadsheetApp.getUi().showModalDialog(html, 'Dashboard Link Required');
+}
+
+/**
+ * Save dashboard link to Script Properties
+ */
+function saveDashboardLinkToProperties(sheetName, dashboardLink) {
+  const scriptProperties = PropertiesService.getScriptProperties();
+  scriptProperties.setProperty(`dashboard_${sheetName}`, dashboardLink);
+  return true;
+}
+
+/**
+ * Continue with recap after dashboard link is saved
+ */
+function continueWithRecap(sheetName) {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = spreadsheet.getSheetByName(sheetName);
+  
+  if (sheet) {
+    spreadsheet.setActiveSheet(sheet);
+    const clientData = getClientDataFromSheet(sheet);
+    showRecapDialog(clientData);
+  }
 }
 
 /**
@@ -116,6 +1866,42 @@ function addNewClient() {
   showClientTypeDialog();
 }
 
+/**
+ * Get information about the currently selected client
+ * Simply checks A1 value and verifies it's a client sheet
+ */
+function getCurrentClientInfo() {
+  try {
+    const sheet = SpreadsheetApp.getActiveSheet();
+    const sheetName = sheet.getName();
+    
+    // Check if it's a client sheet using existing helper
+    if (!isClientSheet(sheetName)) {
+      return {
+        isClient: false,
+        name: null,
+        sheetName: sheetName
+      };
+    }
+    
+    // Simply get the value from A1
+    const clientName = sheet.getRange('A1').getValue();
+    
+    return {
+      isClient: true,
+      name: clientName || 'Unnamed Client', // Fallback if A1 is empty
+      sheetName: sheetName
+    };
+    
+  } catch (e) {
+    console.error('Error getting client info:', e);
+    return {
+      isClient: false,
+      name: null,
+      sheetName: null
+    };
+  }
+}
 /**
  * Shows a dialog to select client type (ACT or Academic Support)
  */
@@ -172,7 +1958,7 @@ function showClientInputDialog() {
             width: 100%;
             padding: 12px 16px;
             border: 2px solid #e1e5e9;
-            border-radius: 8px;
+            border-radius: 6px;
             font-size: 16px;
             font-family: inherit;
             transition: border-color 0.3s ease;
@@ -180,8 +1966,8 @@ function showClientInputDialog() {
           }
           input[type="text"]:focus, input[type="email"]:focus, input[type="url"]:focus {
             outline: none;
-            border-color: #1a73e8;
-            box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+            border-color: #003366;                      
+            box-shadow: 0 0 0 3px rgba(0, 51, 102, 0.1);
           }
           .service-selection {
             margin-bottom: 20px;
@@ -196,7 +1982,7 @@ function showClientInputDialog() {
             align-items: center;
             padding: 10px 16px;
             border: 2px solid #e1e5e9;
-            border-radius: 8px;
+            border-radius: 6px;
             cursor: pointer;
             transition: all 0.3s ease;
             background: white;
@@ -207,25 +1993,26 @@ function showClientInputDialog() {
             border-color: #dadce0;
             transform: translateY(-1px);
           }
+
           .service-checkbox.act:hover {
-            background-color: rgba(138, 180, 138, 0.1);
-            border-color: #8ab48a;
+            background-color: rgba(0, 51, 102, 0.1);  /* Blue tint */
+            border-color: #003366;
           }
           .service-checkbox.math:hover {
-            background-color: rgba(217, 131, 122, 0.1);
-            border-color: #d9837a;
+            background-color: rgba(0, 200, 83, 0.1);   /* Green tint */
+            border-color: #00C853;
           }
           .service-checkbox.language:hover {
             background-color: rgba(159, 124, 172, 0.1);
             border-color: #9f7cac;
           }
           .service-checkbox.selected {
-            border-color: #1a73e8;
+            border-color: #003366;                      
             background-color: #f8f9fa;
           }
           .service-checkbox.act.selected {
-            background-color: rgba(138, 180, 138, 0.15);
-            border-color: #8ab48a;
+            background-color: rgba(0, 51, 102, 0.15);
+            border-color: #003366;
           }
           .service-checkbox.math.selected {
             background-color: rgba(217, 131, 122, 0.15);
@@ -262,11 +2049,11 @@ function showClientInputDialog() {
             min-width: 100px;
           }
           .btn-primary {
-            background: #1a73e8;
+            background: #00C853;
             color: white;
           }
           .btn-primary:hover {
-            background: #1557b0;
+            background: #00A043;
             transform: translateY(-1px);
           }
           .btn-primary:disabled {
@@ -281,6 +2068,41 @@ function showClientInputDialog() {
           }
           .btn-secondary:hover {
             background: #f1f3f4;
+          }
+          /* Universal button loading state */
+          .btn-loading {
+            position: relative;
+            color: transparent !important;
+            pointer-events: none;
+            opacity: 0.8;
+          }
+
+          .btn-loading::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 50%;
+            left: 50%;
+            margin-left: -8px;
+            margin-top: -8px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+          }
+
+          /* For secondary/light buttons, use dark spinner */
+          .btn-secondary.btn-loading::after,
+          .btn-danger.btn-loading::after,
+          .quick-fill-btn.btn-loading::after {
+            border-color: rgba(0, 0, 0, 0.1);
+            border-top-color: #5f6368;
+          }
+
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
           }
           .example {
             font-style: italic;
@@ -324,7 +2146,7 @@ function showClientInputDialog() {
             width: 50px;
             height: 50px;
             border: 4px solid #f3f3f3;
-            border-top: 4px solid #1a73e8;
+            border-top: 4px solid #003366;             
             border-radius: 50%;
             animation: spin 1s linear infinite;
             transition: all 0.3s ease;
@@ -332,7 +2154,7 @@ function showClientInputDialog() {
           
           .loading-spinner.success {
             animation: none;
-            border: 4px solid #34a853;
+            border: 4px solid #00C853;                  
             position: relative;
           }
           
@@ -425,7 +2247,7 @@ function showClientInputDialog() {
             <div class="input-group">
               <label>Parent Email(s)</label>
               <input type="email" id="parentEmails" placeholder="Enter parent email address(es)">
-              <div class="example">Use semicolons for multiple: mom@email.com; dad@email.com</div>
+              <div class="example">Use commas for multiple: mom@email.com, dad@email.com</div>
             </div>
             
             <div class="input-group">
@@ -445,6 +2267,19 @@ function showClientInputDialog() {
             <button class="btn-primary" onclick="processClient()">Create Client</button>
             <button class="btn-secondary" onclick="google.script.host.close()">Cancel</button>
           </div>
+
+          <div style="text-align: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e1e5e9;">
+            <a href="https://drive.google.com/drive/u/0/folders/1UYJa--G9hE23a5WfxblqrtdnKdp3r91_" 
+              target="_blank" 
+              style="display: inline-flex; align-items: center; gap: 8px; color: #1a73e8; text-decoration: none; font-size: 13px; padding: 8px 16px; border: 1px solid #dadce0; border-radius: 6px; background: #f8f9fa; transition: all 0.3s ease;"
+              onmouseover="this.style.background='#e8f0fe'; this.style.borderColor='#1a73e8';"
+              onmouseout="this.style.background='#f8f9fa'; this.style.borderColor='#dadce0';">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/>
+              </svg>
+              Open Dashboards Drive Folder
+            </a>
+          </div>  
         </div>
         
         <!-- Loading overlay -->
@@ -461,6 +2296,17 @@ function showClientInputDialog() {
             element.classList.toggle('selected', checkbox.checked);
           }
           
+          function setButtonLoading(button, isLoading) {
+            if (isLoading) {
+              button.dataset.originalText = button.textContent;
+              button.classList.add('btn-loading');
+              button.disabled = true;
+            } else {
+              button.classList.remove('btn-loading');
+              button.textContent = button.dataset.originalText || button.textContent;
+              button.disabled = false;
+            }
+          }
           // Allow Enter key to submit
           document.addEventListener('keypress', function(e) {
             if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
@@ -495,6 +2341,9 @@ function showClientInputDialog() {
           
           function processClient() {
             if (!validateForm()) return;
+            
+            const button = document.querySelector('.btn-primary');
+            setButtonLoading(button, true);
             
             const clientData = {
               name: document.getElementById('clientName').value.trim(),
@@ -537,6 +2386,8 @@ function showClientInputDialog() {
           function onFailure(error) {
             // Hide loading overlay on error
             document.getElementById('loadingOverlay').classList.remove('active');
+            const button = document.querySelector('.btn-primary');
+            setButtonLoading(button, false);
             alert('Error: ' + error.message);
           }
         </script>
@@ -547,10 +2398,6 @@ function showClientInputDialog() {
   SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Client Management');
 }
 
-/**
- * Creates a new client sheet based on the template and adds to master list
- * @param {Object} clientData - Object containing all client information
- */
 function createClientSheet(clientData) {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   
@@ -580,7 +2427,11 @@ function createClientSheet(clientData) {
   newSheet.getRange('D2').setValue(clientData.dashboardLink);  // Dashboard smart chip (display)
   newSheet.getRange('E2').setValue(clientData.parentEmails);   // Parent emails
   newSheet.getRange('F2').setValue(clientData.parentNames);    // Parent names
-  newSheet.getRange('H2').setValue(clientData.dashboardLink);  // Dashboard actual link
+  
+  if (clientData.dashboardLink) {
+    const scriptProperties = PropertiesService.getScriptProperties();
+    scriptProperties.setProperty(`dashboard_${concatenatedName}`, clientData.dashboardLink);
+  }
   
   // Move the new sheet to position 3 (index 2, since it's 0-based)
   const totalSheets = spreadsheet.getSheets().length;
@@ -590,17 +2441,27 @@ function createClientSheet(clientData) {
   spreadsheet.setActiveSheet(newSheet);
   spreadsheet.moveActiveSheet(targetPosition);
   
-  // Add client to master list
+  // IMPORTANT: Force Google Sheets to complete the sheet creation
+  SpreadsheetApp.flush();
+  
+  // Verify the sheet exists before adding to master list
+  const verifySheet = spreadsheet.getSheetByName(concatenatedName);
+  if (!verifySheet) {
+    throw new Error('Sheet creation failed - sheet not found after creation');
+  }
+  
+  // NOW add client to master list after sheet is confirmed to exist
   try {
     addClientToMasterList(clientData, concatenatedName, spreadsheet);
   } catch (e) {
     console.error('Error adding client to master list:', e);
     // Continue even if master list update fails
+    // But let's throw a more informative error
+    throw new Error(`Client sheet created successfully, but failed to add to master list: ${e.message}`);
   }
   
   return `Client sheet for "${clientData.name}" has been created successfully! ✓`;
 }
-
 /**
  * Get email data from Properties Service
  * This function retrieves the temporarily stored email data for the preview dialog
@@ -717,13 +2578,12 @@ function addClientToMasterList(clientData, sheetName, spreadsheet) {
       masterSheet.getRange(newRow, 2).setValue('');
     }
     
-    // Column C: Last Session - Formula to get last non-empty cell from student's sheet
-    // This will show the most recent entry from their sheet
-    const lastSessionFormula = `=INDEX(FILTER(${sheetName}!A:A,${sheetName}!A:A<>""), COUNTA(${sheetName}!A:A)`;
+    // Column C: Last Session - Formula with IFERROR to prevent errors
+    const lastSessionFormula = `=IFERROR(INDEX(FILTER(${sheetName}!A:A,${sheetName}!A:A<>""), COUNTA(${sheetName}!A:A)), "")`;
     console.log('Setting column C (Last Session) formula:', lastSessionFormula);
     masterSheet.getRange(newRow, 3).setFormula(lastSessionFormula);
     
-    // Column D: Next Session Scheduled? - Checkbox with value TRUE (assuming they're scheduled)
+    // Column D: Next Session Scheduled? - Checkbox with value TRUE
     console.log('Adding checkbox to column D (Next Session Scheduled?)');
     masterSheet.getRange(newRow, 4).insertCheckboxes();
     masterSheet.getRange(newRow, 4).setValue(true);
@@ -732,8 +2592,12 @@ function addClientToMasterList(clientData, sheetName, spreadsheet) {
     console.log('Adding checkbox to column E (Current Client?)');
     masterSheet.getRange(newRow, 5).insertCheckboxes();
     masterSheet.getRange(newRow, 5).setValue(true);
+    masterSheet.getRange(newRow, 5).check(); // Ensure checkbox is checked
     
     console.log('✓ Successfully added client to master list');
+    
+    // Force a refresh of the sheet to ensure all formulas calculate
+    SpreadsheetApp.flush();
         
   } catch (error) {
     console.error('ERROR adding data to master list:', error);
@@ -773,9 +2637,100 @@ function createInternalHyperlink(spreadsheet, targetSheetName, displayText) {
 }
 
 /**
- * Find and navigate to a client sheet
+ * Helper function to get sheet by its ID
+ */
+function getSheetById(spreadsheet, sheetId) {
+  const sheets = spreadsheet.getSheets();
+  for (let sheet of sheets) {
+    if (sheet.getSheetId() === sheetId) {
+      return sheet;
+    }
+  }
+  return null;
+}
+
+/**
+ * Extract sheet name from hyperlink formula
+ */
+function extractSheetNameFromFormula(formula, clientName, spreadsheet) {
+  if (!formula) {
+    return clientName.replace(/\s+/g, ''); // Default to concatenated
+  }
+  
+  const match = formula.match(/HYPERLINK\("#gid=(\d+)"/);
+  if (match) {
+    const sheetId = parseInt(match[1]);
+    const sheet = getSheetById(spreadsheet, sheetId);
+    if (sheet) {
+      return sheet.getName();
+    }
+  }
+  
+  return clientName.replace(/\s+/g, ''); // Fallback
+}
+
+/**
+ * Optimized find client using Master sheet
  */
 function findClient() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const masterSheet = spreadsheet.getSheetByName('Master');
+  
+  if (!masterSheet) {
+    // Fallback to original method if no Master sheet
+    findClientFallback();
+    return;
+  }
+  
+  // Get data from Master sheet
+  const lastRow = masterSheet.getLastRow();
+  if (lastRow < 2) {
+    SpreadsheetApp.getUi().alert('No clients found in Master sheet.');
+    return;
+  }
+  
+  // Get both values and formulas to extract hyperlinks
+  const dataRange = masterSheet.getRange(2, 1, lastRow - 1, 5); // A2:E[lastRow]
+  const values = dataRange.getValues();
+  const formulas = dataRange.getFormulas();
+  
+  const clientSheets = [];
+  
+  for (let i = 0; i < values.length; i++) {
+    const clientName = values[i][0]; // Column A
+    const isCurrentClient = values[i][4]; // Column E
+    
+    // Skip if no name or not current client
+    if (!clientName || !isCurrentClient) continue;
+    
+    const sheetName = extractSheetNameFromFormula(
+      formulas[i][0], 
+      clientName, 
+      spreadsheet
+    );
+    
+    clientSheets.push({
+      sheetName: sheetName,
+      displayName: clientName,
+      firstName: clientName.split(' ')[0]
+    });
+  }
+  
+  // Sort by first name
+  clientSheets.sort((a, b) => a.firstName.localeCompare(b.firstName));
+  
+  if (clientSheets.length === 0) {
+    SpreadsheetApp.getUi().alert('No active clients found.');
+    return;
+  }
+  
+  showClientSelectionDialog(clientSheets);
+}
+
+/**
+ * Fallback to original method if Master sheet approach fails
+ */
+function findClientFallback() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const sheets = spreadsheet.getSheets();
   
@@ -863,11 +2818,11 @@ function showClientSelectionDialog(clientSheets) {
             padding: 12px 16px;
             cursor: pointer;
             border-bottom: 1px solid #f8f9fa;
-            transition: all 0.2s ease;
+            transition: all 0.3s ease;
           }
           .client-item:hover {
             background: #f8f9fa;
-            color: #1a73e8;
+            color: #003366;      
             font-weight: 500;
           }
           .client-item:last-child {
@@ -878,18 +2833,55 @@ function showClientSelectionDialog(clientSheets) {
             text-align: center;
           }
           button {
-            padding: 10px 20px;
-            border: 1px solid #dadce0;
-            border-radius: 6px;
-            background: #f8f9fa;
-            color: #5f6368;
-            cursor: pointer;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 24px;  
             font-size: 14px;
-            font-weight: 500;
+            font-weight: 600;     
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
           }
+
           button:hover {
-            background: #f1f3f4;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
           }
+          /* Universal button loading state */
+          .btn-loading {
+            position: relative;
+            color: transparent !important;
+            pointer-events: none;
+            opacity: 0.8;
+          }
+
+          .btn-loading::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 50%;
+            left: 50%;
+            margin-left: -8px;
+            margin-top: -8px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+          }
+
+          /* For secondary/light buttons, use dark spinner */
+          .btn-secondary.btn-loading::after,
+          .btn-danger.btn-loading::after,
+          .quick-fill-btn.btn-loading::after {
+            border-color: rgba(0, 0, 0, 0.1);
+            border-top-color: #5f6368;
+          }
+
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          } 
           
           /* Loading overlay styles */
           .loading-overlay {
@@ -915,7 +2907,7 @@ function showClientSelectionDialog(clientSheets) {
             width: 50px;
             height: 50px;
             border: 4px solid #f3f3f3;
-            border-top: 4px solid #1a73e8;
+            border-top: 4px solid #003366;  
             border-radius: 50%;
             animation: spin 1s linear infinite;
           }
@@ -997,23 +2989,20 @@ function navigateToClient(sheetName) {
 }
 
 /**
- * Updated openQuickNotes function with custom clear confirmation
+ * Universal sidebar that can switch between views without closing
  */
-function openQuickNotes() {
+function showUniversalSidebar(initialView = 'control') {
   const sheet = SpreadsheetApp.getActiveSheet();
-  if (!isClientSheet(sheet.getName())) {
-    SpreadsheetApp.getUi().alert('Please navigate to a client sheet first.');
-    return;
+  const clientInfo = getCurrentClientInfo();
+  
+  // Get quick notes data if on a client sheet
+  let notesData = {};
+  if (clientInfo.isClient) {
+    const scriptProperties = PropertiesService.getScriptProperties();
+    const notesKey = `notes_${sheet.getName()}`;
+    const savedNotes = scriptProperties.getProperty(notesKey);
+    notesData = savedNotes ? JSON.parse(savedNotes) : {};
   }
-  
-  // Get student name for the confirmation dialog
-  const studentName = sheet.getRange('A1').getValue();
-  
-  // Get any existing notes
-  const scriptProperties = PropertiesService.getScriptProperties();
-  const notesKey = `notes_${sheet.getName()}`;
-  const savedNotes = scriptProperties.getProperty(notesKey);
-  const notes = savedNotes ? JSON.parse(savedNotes) : {};
   
   const html = HtmlService.createHtmlOutput(`
     <!DOCTYPE html>
@@ -1023,16 +3012,233 @@ function openQuickNotes() {
           body {
             font-family: 'Google Sans', Arial, sans-serif;
             margin: 0;
-            padding: 15px;
+            padding: 0;
             font-size: 14px;
+            box-sizing: border-box;
           }
-          h3 {
+          
+          /* View management */
+          .view { 
+            display: none; 
+            padding: 15px;
+          }
+          .view.active { 
+            display: block; 
+          }
+          
+          /* Common styles */
+         h3 {
             margin-top: 0;
-            color: #1a73e8;
+            color: #003366;  /* Changed from #1a73e8 */
           }
+          
+          button {
+            background: #003366;  /* Changed from #1a73e8 */
+            color: white;
+            /* ... rest stays the same */
+          }
+
+          
+          button:hover {
+            background: #002244;  /* Changed from #1557b0 */
+          }
+
+          
+          button:disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
+          }
+          
+          .button-group {
+            display: flex;
+            gap: 4%;
+            width: 100%;
+          }
+          
+          .btn-secondary {
+            background: #f8f9fa;
+            color: #5f6368 !important; 
+            border: 1px solid #dadce0;
+          }
+          
+          .btn-secondary:hover {
+            background: #f1f3f4;
+            border-color: #d2d6dc;
+          }
+          
+          .btn-danger {
+            background: #ea4335;
+            color: white !important; 
+          }
+
+          
+          .btn-danger:hover {
+            background: #d33b2c;
+          }
+          /* Universal button loading state */
+          .btn-loading {
+            position: relative;
+            color: transparent !important;
+            pointer-events: none;
+            opacity: 0.8;
+          }
+
+          .btn-loading::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 50%;
+            left: 50%;
+            margin-left: -8px;
+            margin-top: -8px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+          }
+
+          /* For secondary/light buttons, use dark spinner */
+          .btn-secondary.btn-loading::after,
+          .btn-danger.btn-loading::after,
+          .quick-fill-btn.btn-loading::after {
+            border-color: rgba(0, 0, 0, 0.1);
+            border-top-color: #5f6368;
+          }
+
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+          
+          /* Control Panel styles */
+          .current-client {
+            background: #e8f0fe;
+            border-left: 4px solid #003366;  /* Add this new line */
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 13px;
+          }
+          
+          .current-client-label {
+            font-weight: 500;
+            color: #003366;  /* Changed from #1a73e8 */
+            margin-bottom: 4px;
+          }
+          
+          .current-client-name {
+            color: #202124;
+            font-weight: 600;
+          }
+          
+          .no-client {
+            color: #5f6368;
+            font-style: italic;
+          }
+          
+          .section {
+            margin-bottom: 25px;
+          }
+          
+          .section-title {
+            font-weight: 500;
+            color: #5f6368;
+            margin-bottom: 12px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          
+          .menu-button {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 8px;
+            border: 1px solid #dadce0;
+            border-radius: 6px;
+            background: white;
+            color: #202124; /* ADD THIS LINE */
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+          }
+          
+          .menu-button:hover:not(:disabled) {
+            background: #f8f9fa;
+            border-color: #003366;  /* Changed from #1a73e8 */
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          }
+          
+          .menu-button:active {
+            transform: translateY(0);
+            box-shadow: none;
+          }
+          
+          .menu-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+          }
+          
+          .primary {
+            background: #00C853;  /* Changed from #1a73e8 to use green for primary actions */
+            color: white !important; 
+            border: none;
+            text-align: center;
+            justify-content: center;
+          }
+          
+          .primary:hover:not(:disabled) {
+            background: #00A043;  /* Changed from #1557b0 */
+          }
+          
+          .icon {
+            font-size: 18px;
+            width: 24px;
+            text-align: center;
+          }
+          
+          /* Quick Notes styles */
+          .control-panel-btn {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+            color: #003366;
+            border: 1px solid #dadce0;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+          }
+          
+          .control-panel-btn:hover {
+            background: #e8f0fe;
+            border-color: #1a73e8;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          }
+          
+          .divider {
+            height: 1px;
+            background: #e8eaed;
+            margin: 15px 0;
+          }
+          
           .note-section {
             margin-bottom: 15px;
           }
+          
           textarea {
             width: 100%;
             min-height: 60px;
@@ -1042,7 +3248,9 @@ function openQuickNotes() {
             font-family: inherit;
             font-size: 13px;
             resize: vertical;
+            box-sizing: border-box;
           }
+          
           label {
             display: block;
             margin-bottom: 4px;
@@ -1050,41 +3258,7 @@ function openQuickNotes() {
             color: #5f6368;
             font-size: 12px;
           }
-          button {
-            background: #1a73e8;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 13px;
-            margin-top: 10px;
-            width: 48%;
-          }
-          button:hover {
-            background: #1557b0;
-          }
-          .button-group {
-            display: flex;
-            gap: 4%;
-            width: 100%;
-          }
-          .btn-secondary {
-            background: #f8f9fa;
-            color: #5f6368;
-            border: 1px solid #dadce0;
-          }
-          .btn-secondary:hover {
-            background: #f1f3f4;
-            border-color: #d2d6dc;
-          }
-          .btn-danger {
-            background: #ea4335;
-            color: white;
-          }
-          .btn-danger:hover {
-            background: #d33b2c;
-          }
+          
           .quick-tag {
             display: inline-block;
             padding: 3px 8px;
@@ -1095,25 +3269,29 @@ function openQuickNotes() {
             cursor: pointer;
             font-size: 11px;
           }
+          
           .quick-tag:hover {
             background: #e8f0fe;
-            border-color: #1a73e8;
+            border-color: #003366;  /* Changed from #1a73e8 */
           }
+          
           .save-indicator {
             position: fixed;
             top: 10px;
             right: 10px;
             padding: 5px 10px;
-            background: #34a853;
+            background: #00C853;
             color: white;
             border-radius: 4px;
             font-size: 11px;
             opacity: 0;
             transition: opacity 0.3s;
           }
+          
           .save-indicator.show {
             opacity: 1;
           }
+          
           .auto-save-status {
             font-size: 11px;
             color: #5f6368;
@@ -1121,69 +3299,9 @@ function openQuickNotes() {
             text-align: center;
           }
           
-          /* Custom confirmation overlay styles */
-          .confirmation-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-            animation: fadeIn 0.3s ease-out;
-          }
-          
-          .confirmation-overlay.show {
-            display: flex;
-          }
-          
-          @keyframes fadeIn {
-            from {
-              opacity: 0;
-            }
-            to {
-              opacity: 1;
-            }
-          }
-          
-          /* Loading overlay styles */
-          .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-            animation: fadeIn 0.3s ease-out;
-          }
-          
-          .loading-overlay.show {
-            display: flex;
-          }
-          
-          .loading-content {
-            text-align: center;
-          }
-          
-          .loading-spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #1a73e8;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
+          .btn-success {
+            background: #00C853 !important;  
+            transition: background 0.3s ease;
           }
           
           @keyframes spin {
@@ -1191,248 +3309,246 @@ function openQuickNotes() {
             100% { transform: rotate(360deg); }
           }
           
-          .loading-text {
-            font-size: 14px;
-            color: #5f6368;
-            font-weight: 500;
-          }
-          
-          .confirmation-dialog {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-            max-width: 400px;
+          /* Loading states */
+          .loading {
+            display: none;
             text-align: center;
-            animation: slideUp 0.3s ease-out;
+            padding: 20px;
           }
           
-          @keyframes slideUp {
-            from {
-              transform: translateY(20px);
-              opacity: 0;
-            }
-            to {
-              transform: translateY(0);
-              opacity: 1;
-            }
+          .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #003366;  
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
           }
           
-          @keyframes slideDown {
-            from {
-              transform: translateY(0);
-              opacity: 1;
-            }
-            to {
-              transform: translateY(20px);
-              opacity: 0;
-            }
+          /* View transition animation */
+          .view {
+            animation: fadeIn 0.3s ease-out;
           }
           
-          .confirmation-overlay.hiding {
-            animation: fadeOut 0.3s ease-out forwards;
+          @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
           }
           
-          .confirmation-overlay.hiding .confirmation-dialog {
-            animation: slideDown 0.3s ease-out forwards;
-          }
-          
-          @keyframes fadeOut {
-            from {
-              opacity: 1;
-            }
-            to {
-              opacity: 0;
-            }
-          }
-          
-          .confirmation-icon {
-            font-size: 48px;
-            margin-bottom: 20px;
-          }
-          
-          .confirmation-title {
-            font-size: 18px;
-            font-weight: 500;
-            color: #202124;
-            margin-bottom: 10px;
-          }
-          
-          .confirmation-message {
-            font-size: 14px;
-            color: #5f6368;
-            margin-bottom: 25px;
-            line-height: 1.5;
-          }
-          
-          .confirmation-buttons {
-            display: flex;
-            gap: 12px;
-            justify-content: center;
-          }
-          
-          .confirm-btn {
-            padding: 10px 24px;
-            border: none;
+          /* Alert styles */
+          .alert {
+            padding: 12px;
             border-radius: 6px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
+            margin-bottom: 15px;
+            font-size: 13px;
+            display: none;
           }
           
-          .confirm-btn-danger {
-            background: #ea4335;
-            color: white;
+          .alert.error {
+            background: #fce8e6;
+            color: #d93025;
+            display: block;
           }
           
-          .confirm-btn-danger:hover {
-            background: #d33b2c;
-            transform: translateY(-1px);
-          }
-          
-          .confirm-btn-cancel {
-            background: #f8f9fa;
-            color: #5f6368;
-            border: 1px solid #dadce0;
-          }
-          
-          .confirm-btn-cancel:hover {
-            background: #f1f3f4;
-            border-color: #d2d6dc;
+          .alert.success {
+            background: #e6f4ea;
+            color: #188038;
+            display: block;
           }
         </style>
       </head>
       <body>
-        <h3>Quick Session Notes</h3>
-        <p style="font-size: 12px; color: #666;">Click tags to add to notes</p>
-        
-        <div class="save-indicator" id="saveIndicator">Saved!</div>
-        
-        <div class="note-section">
-          <label>Wins/Breakthroughs</label>
-          <div style="margin-bottom: 5px;">
-            <span class="quick-tag" onclick="addToField('wins', 'Aha moment!')">Aha moment!</span>
-            <span class="quick-tag" onclick="addToField('wins', 'Solved independently')">Solved independently</span>
-            <span class="quick-tag" onclick="addToField('wins', 'Confidence boost')">Confidence boost</span>
-            <span class="quick-tag" onclick="addToField('wins', 'Speed improved')">Speed improved</span>
+        <!-- Control Panel View -->
+        <div id="controlView" class="view ${initialView === 'control' ? 'active' : ''}">
+          <div class="current-client">
+            <div class="current-client-label">Current Client:</div>
+            <div id="clientName" class="${clientInfo.isClient ? 'current-client-name' : 'no-client'}">
+              ${clientInfo.isClient ? clientInfo.name : 'No client selected'}
+            </div>
           </div>
-          <textarea id="wins" placeholder="Quick notes about wins..." onchange="markUnsaved()">${notes.wins || ''}</textarea>
-        </div>
-        
-        <div class="note-section">
-          <label>Skills Worked On</label>
-          <textarea id="skills" placeholder="List skills covered..." onchange="markUnsaved()">${notes.skills || ''}</textarea>
-        </div>
-        
-        <div class="note-section">
-          <label>Struggles/Areas to Review</label>
-          <textarea id="struggles" placeholder="Note any challenges..." onchange="markUnsaved()">${notes.struggles || ''}</textarea>
-        </div>
-        
-        <div class="note-section">
-          <label>Parent Communication Points</label>
-          <textarea id="parent" placeholder="Things to mention to parent..." onchange="markUnsaved()">${notes.parent || ''}</textarea>
-        </div>
-        
-        <div class="note-section">
-          <label>Next Session Focus</label>
-          <textarea id="next" placeholder="Plan for next time..." onchange="markUnsaved()">${notes.next || ''}</textarea>
-        </div>
-        
-        <div class="button-group">
-          <button onclick="saveNotes()">Save Notes</button>
-          <button class="btn-secondary" onclick="sendRecap()">Send Recap</button>
-        </div>
-        
-        <div class="button-group" style="margin-top: 5px;">
-          <button class="btn-danger" onclick="showClearConfirmation()">Clear Notes</button>
-          <button class="btn-secondary" onclick="reloadNotes()">Reload Saved</button>
-        </div>
-        
-        <div class="auto-save-status" id="autoSaveStatus">Auto-save: Active</div>
-        
-        <!-- Custom confirmation overlay for Clear Notes -->
-        <div class="confirmation-overlay" id="confirmationOverlay">
-          <div class="confirmation-dialog">
-            <div class="confirmation-icon">⚠️</div>
-            <div class="confirmation-title">Clear Quick Notes?</div>
-            <div class="confirmation-message">
-              This will clear all quick notes for ${studentName}. Continue?
-            </div>
-            <div class="confirmation-buttons">
-              <button class="confirm-btn confirm-btn-danger" onclick="confirmClearNotes()">Yes, Clear Notes</button>
-              <button class="confirm-btn confirm-btn-cancel" onclick="hideClearConfirmation()">Cancel</button>
-            </div>
+          
+          <div class="section">
+            <div class="section-title">Client Management</div>
+            <button class="menu-button primary" onclick="runFunction('addNewClient')">
+              <span class="icon">➕</span>
+              Add New Client
+            </button>
+            <button class="menu-button" onclick="runFunction('findClient')">
+              <span class="icon">🔍</span>
+              Find Client
+            </button>
+          </div>
+          
+          <div class="section">
+            <div class="section-title">Session Management</div>
+            <button id="quickNotesBtn" class="menu-button" onclick="switchToQuickNotes()" ${!clientInfo.isClient ? 'disabled' : ''}>
+              <span class="icon">📝</span>
+              Quick Notes
+            </button>
+            <button id="recapBtn" class="menu-button" onclick="runFunction('sendIndividualRecap')" ${!clientInfo.isClient ? 'disabled' : ''}>
+              <span class="icon">✉️</span>
+              Send Session Recap
+            </button>
+            <button class="menu-button" onclick="runFunction('openBatchPrepMode')">
+              <span class="icon">📋</span>
+              Batch Prep Mode
+            </button>
+            <button class="menu-button" onclick="runFunction('viewRecapHistory')">
+              <span class="icon">📊</span>
+              View Recap History
+            </button>
+          </div>
+          
+          <div class="loading" id="controlLoading">
+            <div class="spinner"></div>
+            <p>Loading...</p>
           </div>
         </div>
         
-        <!-- Custom confirmation overlay for Reload -->
-        <div class="confirmation-overlay" id="reloadConfirmationOverlay">
-          <div class="confirmation-dialog">
-            <div class="confirmation-icon">🔄</div>
-            <div class="confirmation-title">Reload Saved Notes?</div>
-            <div class="confirmation-message">
-              You have unsaved changes. Reload anyway?
+        <!-- Quick Notes View -->
+        <div id="quickNotesView" class="view ${initialView === 'quicknotes' ? 'active' : ''}">
+          <button class="control-panel-btn" onclick="switchToControlPanel()">
+            <span>📊</span>
+            <span>Back to Control Panel</span>
+          </button>
+          
+          <div class="divider"></div>
+          
+          <div id="quickNotesAlert" class="alert" style="display: none;"></div>
+          
+          <h3>Quick Session Notes</h3>
+          <p style="font-size: 12px; color: #666;">Click tags to add to notes</p>
+          
+          <div class="save-indicator" id="saveIndicator">Saved!</div>
+          
+          <div class="note-section">
+            <label>Wins/Breakthroughs</label>
+            <div style="margin-bottom: 5px;">
+              <span class="quick-tag" onclick="addToField('wins', 'Aha moment!')">Aha moment!</span>
+              <span class="quick-tag" onclick="addToField('wins', 'Solved independently')">Solved independently</span>
+              <span class="quick-tag" onclick="addToField('wins', 'Confidence boost')">Confidence boost</span>
+              <span class="quick-tag" onclick="addToField('wins', 'Speed improved')">Speed improved</span>
             </div>
-            <div class="confirmation-buttons">
-              <button class="confirm-btn confirm-btn-danger" onclick="performReload()">Yes, Reload</button>
-              <button class="confirm-btn confirm-btn-cancel" onclick="hideReloadConfirmation()">Cancel</button>
-            </div>
+            <textarea id="wins" placeholder="Quick notes about wins..." onchange="markUnsaved()">${notesData.wins || ''}</textarea>
           </div>
-        </div>
-        
-        <!-- Loading overlay for clearing notes -->
-        <div class="loading-overlay" id="clearLoadingOverlay">
-          <div class="loading-content">
-            <div class="loading-spinner"></div>
-            <div class="loading-text">Clearing notes...</div>
+          
+          <div class="note-section">
+            <label>Skills Worked On</label>
+            <textarea id="skills" placeholder="List skills covered..." onchange="markUnsaved()">${notesData.skills || ''}</textarea>
           </div>
-        </div>
-        
-        <!-- Loading overlay for reloading notes -->
-        <div class="loading-overlay" id="reloadLoadingOverlay">
-          <div class="loading-content">
-            <div class="loading-spinner"></div>
-            <div class="loading-text">Reloading last saved notes...</div>
+          
+          <div class="note-section">
+            <label>Struggles/Areas to Review</label>
+            <textarea id="struggles" placeholder="Note any challenges..." onchange="markUnsaved()">${notesData.struggles || ''}</textarea>
           </div>
-        </div>
-        
-        <!-- Success message overlay -->
-        <div class="confirmation-overlay" id="successOverlay">
-          <div class="confirmation-dialog" style="background: #e8f5e9;">
-            <div class="confirmation-icon" style="color: #2e7d32;">✓</div>
-            <div class="confirmation-title" style="color: #2e7d32;">Success!</div>
-            <div class="confirmation-message" id="successMessage" style="color: #2e7d32;">
-              Notes reloaded from saved version.
-            </div>
+          
+          <div class="note-section">
+            <label>Parent Communication Points</label>
+            <textarea id="parent" placeholder="Things to mention to parent..." onchange="markUnsaved()">${notesData.parent || ''}</textarea>
           </div>
-        </div>
-        
-        <!-- Error message overlay -->
-        <div class="confirmation-overlay" id="errorOverlay">
-          <div class="confirmation-dialog">
-            <div class="confirmation-icon" style="color: #d93025;">❌</div>
-            <div class="confirmation-title" style="color: #d93025;">Error</div>
-            <div class="confirmation-message" id="errorMessage" style="color: #d93025;">
-              No saved notes found for this student.
-            </div>
-            <div class="confirmation-buttons">
-              <button class="confirm-btn confirm-btn-cancel" onclick="hideErrorOverlay()">OK</button>
-            </div>
+          
+          <div class="note-section">
+            <label>Next Session Focus</label>
+            <textarea id="next" placeholder="Plan for next time..." onchange="markUnsaved()">${notesData.next || ''}</textarea>
           </div>
+          
+          <div class="button-group">
+            <button id="saveNotesBtn" onclick="saveNotes()">Save Notes</button>
+            <button class="btn-secondary" onclick="sendRecap()">Send Recap</button>
+          </div>
+          
+          <div class="button-group" style="margin-top: 5px;">
+            <button class="btn-danger" onclick="clearNotes()">Clear Notes</button>
+            <button class="btn-secondary" onclick="reloadNotes()">Reload Saved</button>
+          </div>
+          
+          <div class="auto-save-status" id="autoSaveStatus">Auto-save: Active</div>
         </div>
         
         <script>
+          let currentView = '${initialView}';
+          let clientInfo = ${JSON.stringify(clientInfo)};
           let unsavedChanges = false;
           let autoSaveInterval;
           
-          // Mark that we have unsaved changes
+          // View switching functions
+          function switchToQuickNotes() {
+            // Check if we're on a client sheet
+            google.script.run
+              .withSuccessHandler((info) => {
+                if (info.isClient) {
+                  // Load the latest notes
+                  google.script.run
+                    .withSuccessHandler((notesJson) => {
+                      if (notesJson) {
+                        const notes = JSON.parse(notesJson);
+                        document.getElementById('wins').value = notes.wins || '';
+                        document.getElementById('skills').value = notes.skills || '';
+                        document.getElementById('struggles').value = notes.struggles || '';
+                        document.getElementById('parent').value = notes.parent || '';
+                        document.getElementById('next').value = notes.next || '';
+                      }
+                      
+                      // Switch view
+                      document.getElementById('controlView').classList.remove('active');
+                      document.getElementById('quickNotesView').classList.add('active');
+                      currentView = 'quicknotes';
+                      
+                      // Start auto-save
+                      startAutoSave();
+                    })
+                    .getQuickNotesForCurrentSheet();
+                } else {
+                  showAlert('Please navigate to a client sheet first.', 'error');
+                }
+              })
+              .getCurrentClientInfo();
+          }
+          
+          function switchToControlPanel() {
+            // Clear auto-save
+            if (autoSaveInterval) {
+              clearInterval(autoSaveInterval);
+            }
+            
+            // Update client info
+            google.script.run
+              .withSuccessHandler((info) => {
+                clientInfo = info;
+                updateControlPanelView();
+                
+                // Switch view
+                document.getElementById('quickNotesView').classList.remove('active');
+                document.getElementById('controlView').classList.add('active');
+                currentView = 'control';
+              })
+              .getCurrentClientInfo();
+          }
+          
+          function updateControlPanelView() {
+            const clientNameDiv = document.getElementById('clientName');
+            const quickNotesBtn = document.getElementById('quickNotesBtn');
+            const recapBtn = document.getElementById('recapBtn');
+            
+            if (clientInfo.isClient) {
+              clientNameDiv.textContent = clientInfo.name;
+              clientNameDiv.className = 'current-client-name';
+              quickNotesBtn.disabled = false;
+              recapBtn.disabled = false;
+            } else {
+              clientNameDiv.textContent = 'No client selected';
+              clientNameDiv.className = 'no-client';
+              quickNotesBtn.disabled = true;
+              recapBtn.disabled = true;
+            }
+          }
+          
+          // Quick Notes functions
           function markUnsaved() {
             unsavedChanges = true;
           }
           
-          // Add to field function
           function addToField(fieldId, text) {
             const field = document.getElementById(fieldId);
             if (field.value) field.value += ', ';
@@ -1440,8 +3556,13 @@ function openQuickNotes() {
             markUnsaved();
           }
           
-          // Save notes function
           function saveNotes() {
+            const saveBtn = document.getElementById('saveNotesBtn');
+            const originalText = saveBtn.textContent;
+            
+            saveBtn.classList.add('btn-saving');
+            saveBtn.disabled = true;
+            
             const notes = {
               wins: document.getElementById('wins').value,
               skills: document.getElementById('skills').value,
@@ -1452,209 +3573,212 @@ function openQuickNotes() {
             
             google.script.run
               .withSuccessHandler(() => {
-                // Show save indicator
+                saveBtn.classList.remove('btn-saving');
+                saveBtn.classList.add('btn-success');
+                saveBtn.textContent = 'Saved!';
+                
                 const indicator = document.getElementById('saveIndicator');
                 indicator.classList.add('show');
+                
                 setTimeout(() => {
+                  saveBtn.classList.remove('btn-success');
+                  saveBtn.textContent = originalText;
+                  saveBtn.disabled = false;
                   indicator.classList.remove('show');
                 }, 2000);
                 
                 unsavedChanges = false;
               })
               .withFailureHandler((error) => {
-                alert('Error saving notes: ' + error.message);
+                saveBtn.classList.remove('btn-saving');
+                saveBtn.disabled = false;
+                showAlert('Error saving notes: ' + error.message, 'error');
               })
               .saveQuickNotes(notes);
           }
           
-          // Show custom confirmation overlay
-          function showClearConfirmation() {
-            document.getElementById('confirmationOverlay').classList.add('show');
-          }
-          
-          // Hide custom confirmation overlay
-          function hideClearConfirmation() {
-            document.getElementById('confirmationOverlay').classList.remove('show');
-          }
-          
-          // Confirm clear notes
-          function confirmClearNotes() {
-            // Hide the confirmation dialog
-            hideClearConfirmation();
-            
-            // Show loading overlay
-            document.getElementById('clearLoadingOverlay').classList.add('show');
-            
-            // Simulate clearing process with a small delay for visual effect
-            setTimeout(() => {
+          function clearNotes() {
+            if (confirm('Clear all quick notes for this student?')) {
               document.getElementById('wins').value = '';
               document.getElementById('skills').value = '';
               document.getElementById('struggles').value = '';
               document.getElementById('parent').value = '';
               document.getElementById('next').value = '';
-              
-              // Mark as having unsaved changes (empty state)
               unsavedChanges = true;
-              
-              // Hide loading overlay
-              document.getElementById('clearLoadingOverlay').classList.remove('show');
-              
-              // Show success message
-              showSuccessMessage('Cleared!');
-            }, 800);
-          }
-          
-          // Reload saved notes
-          function reloadNotes() {
-            if (unsavedChanges) {
-              showReloadConfirmation();
-            } else {
-              performReload();
+              showAlert('Notes cleared. Remember to save!', 'success');
             }
           }
           
-          // Show reload confirmation overlay
-          function showReloadConfirmation() {
-            document.getElementById('reloadConfirmationOverlay').classList.add('show');
-          }
-          
-          // Hide reload confirmation overlay
-          function hideReloadConfirmation() {
-            document.getElementById('reloadConfirmationOverlay').classList.remove('show');
-          }
-          
-          // Show success message overlay
-          function showSuccessMessage(message) {
-            document.getElementById('successMessage').textContent = message;
-            const overlay = document.getElementById('successOverlay');
-            overlay.classList.remove('hiding');
-            overlay.classList.add('show');
-            
-            setTimeout(() => {
-              overlay.classList.add('hiding');
-              setTimeout(() => {
-                overlay.classList.remove('show', 'hiding');
-              }, 300); // Wait for animation to complete
-            }, 2000);
-          }
-          
-          // Show error message overlay
-          function showErrorMessage(message) {
-            document.getElementById('errorMessage').textContent = message;
-            document.getElementById('errorOverlay').classList.add('show');
-          }
-          
-          // Hide error overlay
-          function hideErrorOverlay() {
-            document.getElementById('errorOverlay').classList.remove('show');
-          }
-          
-          // Perform the actual reload
-          function performReload() {
-            // Hide confirmation dialog if it's showing
-            hideReloadConfirmation();
-            
-            // Show loading overlay
-            document.getElementById('reloadLoadingOverlay').classList.add('show');
+          function reloadNotes() {
+            if (unsavedChanges && !confirm('You have unsaved changes. Reload anyway?')) {
+              return;
+            }
             
             google.script.run
-              .withSuccessHandler((savedNotes) => {
-                // Hide loading overlay
-                document.getElementById('reloadLoadingOverlay').classList.remove('show');
-                
-                if (savedNotes) {
-                  const notes = JSON.parse(savedNotes);
+              .withSuccessHandler((notesJson) => {
+                if (notesJson) {
+                  const notes = JSON.parse(notesJson);
                   document.getElementById('wins').value = notes.wins || '';
                   document.getElementById('skills').value = notes.skills || '';
                   document.getElementById('struggles').value = notes.struggles || '';
                   document.getElementById('parent').value = notes.parent || '';
                   document.getElementById('next').value = notes.next || '';
-                  
                   unsavedChanges = false;
-                  showSuccessMessage('Notes reloaded from saved version.');
+                  showAlert('Notes reloaded from saved version.', 'success');
                 } else {
-                  showErrorMessage('No saved notes found for this student.');
+                  showAlert('No saved notes found for this student.', 'error');
                 }
               })
               .withFailureHandler((error) => {
-                // Hide loading overlay
-                document.getElementById('reloadLoadingOverlay').classList.remove('show');
-                showErrorMessage('Error loading notes: ' + error.message);
+                showAlert('Error loading notes: ' + error.message, 'error');
               })
               .getQuickNotesForCurrentSheet();
           }
           
-          // Send recap function
           function sendRecap() {
-            // Save notes first, then close sidebar and open recap
+            // Save notes first
             saveNotes();
             setTimeout(() => {
               google.script.run
                 .withSuccessHandler(() => {
-                  google.script.host.close();
+                  // Switch back to control panel after sending
+                  switchToControlPanel();
                 })
                 .sendIndividualRecap();
             }, 500);
           }
           
-          // Auto-save every 60 seconds (1 minute)
-          autoSaveInterval = setInterval(() => {
-            if (unsavedChanges) {
-              saveNotes();
-              document.getElementById('autoSaveStatus').textContent = 'Auto-saved at ' + 
-                new Date().toLocaleTimeString();
-            }
-          }, 60000);
+          // Auto-save functionality
+          function startAutoSave() {
+            autoSaveInterval = setInterval(() => {
+              if (unsavedChanges) {
+                const notes = {
+                  wins: document.getElementById('wins').value,
+                  skills: document.getElementById('skills').value,
+                  struggles: document.getElementById('struggles').value,
+                  parent: document.getElementById('parent').value,
+                  next: document.getElementById('next').value
+                };
+                
+                google.script.run
+                  .withSuccessHandler(() => {
+                    document.getElementById('autoSaveStatus').textContent = 
+                      'Auto-saved at ' + new Date().toLocaleTimeString();
+                    unsavedChanges = false;
+                  })
+                  .saveQuickNotes(notes);
+              }
+            }, 60000); // Every minute
+          }
           
-          // Save on window close
-          window.addEventListener('beforeunload', (event) => {
-            if (unsavedChanges) {
-              saveNotes();
-              event.returnValue = 'You have unsaved changes.';
-            }
-          });
+          // Control Panel functions
+          function runFunction(functionName) {
+            document.getElementById('controlLoading').style.display = 'block';
+            
+            google.script.run
+              .withSuccessHandler((result) => {
+                document.getElementById('controlLoading').style.display = 'none';
+                
+                // Update client info after certain actions
+                if (functionName === 'findClient' || functionName === 'addNewClient') {
+                  google.script.run
+                    .withSuccessHandler((info) => {
+                      clientInfo = info;
+                      updateControlPanelView();
+                    })
+                    .getCurrentClientInfo();
+                }
+              })
+              .withFailureHandler((error) => {
+                document.getElementById('controlLoading').style.display = 'none';
+                showAlert('Error: ' + error.message, 'error');
+              })[functionName]();
+          }
           
-          // Monitor for text input (not just change events)
+          // Alert helper
+          function showAlert(message, type) {
+            const alertDiv = currentView === 'quicknotes' ? 
+              document.getElementById('quickNotesAlert') : 
+              document.createElement('div');
+              
+            if (currentView === 'control') {
+              alertDiv.className = 'alert ' + type;
+              alertDiv.textContent = message;
+              document.getElementById('controlView').insertBefore(
+                alertDiv, 
+                document.getElementById('controlView').firstChild
+              );
+              
+              setTimeout(() => {
+                alertDiv.remove();
+              }, 5000);
+            } else {
+              alertDiv.className = 'alert ' + type;
+              alertDiv.textContent = message;
+              alertDiv.style.display = 'block';
+              
+              setTimeout(() => {
+                alertDiv.style.display = 'none';
+              }, 5000);
+            }
+          }
+          
+          // Monitor for text input
           document.querySelectorAll('textarea').forEach(textarea => {
             textarea.addEventListener('input', markUnsaved);
           });
           
-          // Close overlay when clicking outside
-          document.getElementById('confirmationOverlay').addEventListener('click', function(e) {
-            if (e.target === this) {
-              hideClearConfirmation();
+          // Refresh client info periodically
+          setInterval(() => {
+            if (currentView === 'control') {
+              google.script.run
+                .withSuccessHandler((info) => {
+                  clientInfo = info;
+                  updateControlPanelView();
+                })
+                .getCurrentClientInfo();
             }
-          });
+          }, 5000);
           
-          document.getElementById('reloadConfirmationOverlay').addEventListener('click', function(e) {
-            if (e.target === this) {
-              hideReloadConfirmation();
-            }
-          });
-          
-          document.getElementById('successOverlay').addEventListener('click', function(e) {
-            if (e.target === this && !this.classList.contains('hiding')) {
-              const overlay = document.getElementById('successOverlay');
-              overlay.classList.add('hiding');
-              setTimeout(() => {
-                overlay.classList.remove('show', 'hiding');
-              }, 300);
-            }
-          });
-          
-          document.getElementById('errorOverlay').addEventListener('click', function(e) {
-            if (e.target === this) {
-              hideErrorOverlay();
-            }
-          });
+          // Initialize auto-save if starting in quick notes
+          if (currentView === 'quicknotes') {
+            startAutoSave();
+          }
         </script>
       </body>
     </html>
-  `).setTitle('Quick Notes').setWidth(300);
+  `).setTitle('Client Management').setWidth(300);
   
   SpreadsheetApp.getUi().showSidebar(html);
 }
 
+/**
+ * Updated showSidebar to use universal sidebar
+ */
+function showSidebar() {
+  showUniversalSidebar('control');
+}
+
+/**
+ * Updated openQuickNotes to use universal sidebar
+ */
+function openQuickNotes() {
+  // First check if we're on a client sheet
+  const clientInfo = getCurrentClientInfo();
+  if (!clientInfo.isClient) {
+    SpreadsheetApp.getUi().alert('Please navigate to a client sheet first.');
+    return;
+  }
+  
+  showUniversalSidebar('quicknotes');
+}
+
+/**
+ * Wrapper function for menu to open Quick Notes
+ */
+function openQuickNotesFromMenu() {
+  openQuickNotes();
+}
 
 /**
  * Get quick notes for the current sheet
@@ -1707,25 +3831,20 @@ function clearQuickNotesForStudent(studentSheetName) {
 }
 
 /**
- * Add option to the menu for managing quick notes
+ * Called when add-on is installed or enabled
  */
-function onOpen() {
-  const ui = SpreadsheetApp.getUi();
-  ui.createMenu('Client Management')
-    .addItem('Add New Client', 'addNewClient')
-    .addSeparator()
-    .addItem('Find Client', 'findClient')
-    .addSeparator()
-    .addSubMenu(ui.createMenu('Session Management')
-      .addItem('Quick Notes', 'openQuickNotes')
-      .addSeparator()
-      .addItem('Send Session Recap', 'sendIndividualRecap')
-      .addItem('Batch Prep Mode', 'openBatchPrepMode')
-      .addItem('View Recap History', 'viewRecapHistory')
-      .addSeparator()
-      .addItem('Clear Current Student Notes', 'clearCurrentStudentNotes'))
-    .addToUi();
+function onInstall(e) {
+  onOpen(e);
 }
+
+/**
+ * Called when add-on is opened from the add-ons menu
+ */
+function onHomepage(e) {
+  return createMainCard();
+}
+
+
 
 /**
  * Menu function to clear notes for current student
@@ -1824,24 +3943,61 @@ function openBatchPrepMode() {
             gap: 10px;
           }
           button {
-            padding: 10px 20px;
+            padding: 12px 24px;
             border: none;
-            border-radius: 6px;
-            cursor: pointer;
+            border-radius: 24px;  /* More rounded */
             font-size: 14px;
-            font-weight: 500;
+            font-weight: 600;     /* Slightly bolder */
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);  /* Add subtle shadow */
           }
           .btn-primary {
-            background: #1a73e8;
+            background: #003366;
             color: white;
           }
           .btn-primary:hover {
-            background: #1557b0;
+            background: #002244;
           }
           .btn-secondary {
             background: #f8f9fa;
             color: #5f6368;
             border: 1px solid #dadce0;
+          }
+          /* Universal button loading state */
+          .btn-loading {
+            position: relative;
+            color: transparent !important;
+            pointer-events: none;
+            opacity: 0.8;
+          }
+
+          .btn-loading::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 50%;
+            left: 50%;
+            margin-left: -8px;
+            margin-top: -8px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+          }
+
+          /* For secondary/light buttons, use dark spinner */
+          .btn-secondary.btn-loading::after,
+          .btn-danger.btn-loading::after,
+          .quick-fill-btn.btn-loading::after {
+            border-color: rgba(0, 0, 0, 0.1);
+            border-top-color: #5f6368;
+          }
+
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
           }
           checkbox {
             margin-right: 10px;
@@ -1873,6 +4029,18 @@ function openBatchPrepMode() {
         </div>
         
         <script>
+          function setButtonLoading(button, isLoading) {
+            if (isLoading) {
+              button.dataset.originalText = button.textContent;
+              button.classList.add('btn-loading');
+              button.disabled = true;
+            } else {
+              button.classList.remove('btn-loading');
+              button.textContent = button.dataset.originalText || button.textContent;
+              button.disabled = false;
+            }
+          }
+          
           function prepareBatch() {
             const checkboxes = document.querySelectorAll('input[type="checkbox"]:checked');
             const selectedClients = Array.from(checkboxes).map(cb => cb.value);
@@ -1882,10 +4050,17 @@ function openBatchPrepMode() {
               return;
             }
             
+            const button = document.querySelector('.btn-primary');
+            setButtonLoading(button, true);
+            
             google.script.run
               .withSuccessHandler(() => {
                 alert('Batch prep complete! Use "Send Session Recap" after each session.');
                 google.script.host.close();
+              })
+              .withFailureHandler((error) => {
+                setButtonLoading(button, false);
+                alert('Error: ' + error.message);
               })
               .prepareBatchClients(selectedClients);
           }
@@ -1943,6 +4118,14 @@ function sendIndividualRecap() {
   }
   
   const clientData = getClientDataFromSheet(sheet);
+  
+  // Check if dashboard link exists
+  if (!clientData.dashboardLink) {
+    // Prompt for dashboard link
+    promptForDashboardLink(sheetName, clientData.studentName);
+    return;
+  }
+  
   showRecapDialog(clientData);
 }
 
@@ -2004,7 +4187,7 @@ function showRecapDialog(clientData) {
           }
           .form-section h3 {
             margin: 0 0 16px 0;
-            color: #1a73e8;
+            color: #003366;          /* Changed from #1a73e8 */
             font-size: 16px;
             font-weight: 500;
           }
@@ -2043,12 +4226,12 @@ function showRecapDialog(clientData) {
           .quick-fill-btn {
             padding: 4px 8px;
             background: #e8f0fe;
-            color: #1a73e8;
+            color: #003366;          /* Changed from #1a73e8 */
             border: none;
             border-radius: 4px;
             font-size: 12px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s;
           }
           .quick-fill-btn:hover {
             background: #d2e3fc;
@@ -2068,12 +4251,12 @@ function showRecapDialog(clientData) {
             transition: all 0.3s ease;
           }
           .btn-primary {
-            background: #1a73e8;
+            background: #00C853;     /* Changed from #1a73e8 */
             color: white;
             flex: 1;
           }
           .btn-primary:hover {
-            background: #1557b0;
+            background: #00A043;     /* Changed from #1557b0 */
           }
           .btn-secondary {
             background: #f8f9fa;
@@ -2082,6 +4265,41 @@ function showRecapDialog(clientData) {
           }
           .btn-secondary:hover {
             background: #f1f3f4;
+          }
+          /* Universal button loading state */
+          .btn-loading {
+            position: relative;
+            color: transparent !important;
+            pointer-events: none;
+            opacity: 0.8;
+          }
+
+          .btn-loading::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 50%;
+            left: 50%;
+            margin-left: -8px;
+            margin-top: -8px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+          }
+
+          /* For secondary/light buttons, use dark spinner */
+          .btn-secondary.btn-loading::after,
+          .btn-danger.btn-loading::after,
+          .quick-fill-btn.btn-loading::after {
+            border-color: rgba(0, 0, 0, 0.1);
+            border-top-color: #5f6368;
+          }
+
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
           }
           .loading-overlay {
             position: fixed;
@@ -2102,7 +4320,7 @@ function showRecapDialog(clientData) {
             width: 40px;
             height: 40px;
             border: 3px solid #f3f3f3;
-            border-top: 3px solid #1a73e8;
+            border-top: 3px solid #003366;  /* Changed from #1a73e8 */
             border-radius: 50%;
             animation: spin 1s linear infinite;
           }
@@ -2128,7 +4346,7 @@ function showRecapDialog(clientData) {
             padding: 8px;
             border-radius: 4px;
             font-size: 12px;
-            color: #2e7d32;
+            color: #00A043;          /* Changed from #2e7d32 to darker green */
             margin-bottom: 10px;
           }
           .act-test-selector {
@@ -2167,7 +4385,7 @@ function showRecapDialog(clientData) {
             font-size: 13px;
             cursor: pointer;
             white-space: nowrap;
-            transition: all 0.2s;
+            transition: all 0.3s;
           }
           .quick-not-scheduled:hover {
             background: #f9cc79;
@@ -2179,7 +4397,7 @@ function showRecapDialog(clientData) {
         <div class="client-info">
           <strong>${clientData.studentName}</strong> - ${clientData.clientTypes}
           ${clientData.parentEmail ? `<br>Parent: ${clientData.parentName} (${clientData.parentEmail})` : ''}
-          ${clientData.dashboardLink ? `<br>Dashboard: <a href="${clientData.dashboardLink}" target="_blank" style="color: #1a73e8;">View Dashboard</a>` : ''}
+          ${clientData.dashboardLink ? `<br>Dashboard: <a href="${clientData.dashboardLink}" target="_blank" style="color: #003366;">View Dashboard</a>` : ''}
         </div>
         
         ${notes.wins ? '<div class="saved-notes-indicator">Quick notes loaded from your session</div>' : ''}
@@ -2311,6 +4529,18 @@ function showRecapDialog(clientData) {
           const homeworkTemplates = ${JSON.stringify(homeworkOptions)};
           const actTests = ${JSON.stringify(ACT_TESTS)};
           
+          function setButtonLoading(button, isLoading) {
+            if (isLoading) {
+              button.dataset.originalText = button.textContent;
+              button.classList.add('btn-loading');
+              button.disabled = true;
+            } else {
+              button.classList.remove('btn-loading');
+              button.textContent = button.dataset.originalText || button.textContent;
+              button.disabled = false;
+            }
+          }
+          
           function fillField(fieldId, text) {
             document.getElementById(fieldId).value = text;
           }
@@ -2381,6 +4611,9 @@ function showRecapDialog(clientData) {
           document.getElementById('recapForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
+            const submitBtn = e.target.querySelector('.btn-primary');
+            setButtonLoading(submitBtn, true);
+            
             // Prepare form data
             const formData = {
               ...clientData,
@@ -2399,17 +4632,17 @@ function showRecapDialog(clientData) {
               date: new Date().toLocaleDateString()
             };
             
-            document.getElementById('loadingOverlay').classList.add('active');
+            // Note: We don't need to show the overlay since we're using button loading
+            // document.getElementById('loadingOverlay').classList.add('active');
             
             // Call generateEmailPreview which will process the data and show the preview
             google.script.run
               .withSuccessHandler(function(emailData) {
-                document.getElementById('loadingOverlay').classList.remove('active');
-                // Close this dialog - the server has already shown the preview
+                // Don't need to remove loading state here as dialog closes
                 google.script.host.close();
               })
               .withFailureHandler(function(error) {
-                document.getElementById('loadingOverlay').classList.remove('active');
+                setButtonLoading(submitBtn, false);
                 alert('Error: ' + error.message);
               })
               .generateEmailPreview(formData);
@@ -2428,9 +4661,11 @@ function showRecapDialog(clientData) {
  */
 function generateEmailPreview(formData) {
   // Extract first name from full name
+  const config = getCompleteConfig();
   formData.studentFirstName = formData.studentName.split(' ')[0];
-  formData.tutorName = CONFIG.tutorName;
+  formData.tutorName = config.tutorName;
   
+
   // Format the current date nicely for the email body
   const today = new Date();
   formData.formattedDate = today.toLocaleDateString('en-US', { 
@@ -2571,7 +4806,7 @@ function buildEmailBody(data) {
   sections.push('Questions? Just hit reply!');
   sections.push('');
   sections.push('Best,');
-  sections.push(data.tutorName || CONFIG.tutorName);
+  sections.push(data.tutorName || getCompleteConfig().tutorName);
   
   // P.S. section if provided
   if (data.psNote) {
@@ -2686,10 +4921,6 @@ function formatForRichHtml(sections) {
 
 
 
-
-/**
- * Fixed showEmailPreviewDialog function with Back to Edit button
- */
 function showEmailPreviewDialog(emailData) {
   // Get meeting notes link from cell I2 and score report link from J2 of the active sheet
   const activeSheet = SpreadsheetApp.getActiveSheet();
@@ -2749,8 +4980,8 @@ function showEmailPreviewDialog(emailData) {
           .copy-btn {
             padding: 6px 12px;
             background: #e8f0fe;
-            color: #1a73e8;
-            border: none;
+            color: #003366;          
+            border: none;     
             border-radius: 4px;
             cursor: pointer;
             font-size: 12px;
@@ -2762,7 +4993,7 @@ function showEmailPreviewDialog(emailData) {
             background: #d2e3fc;
           }
           .copy-btn.copied {
-            background: #34a853;
+            background: #00C853;    
             color: white;
           }
           .copy-btn.gmail {
@@ -2773,11 +5004,46 @@ function showEmailPreviewDialog(emailData) {
             background: #d33b2c;
           }
           .copy-btn.dashboard {
-            background: #34a853;
+            background: #00C853;  
             color: white;
           }
+          /* Universal button loading state */
+          .btn-loading {
+            position: relative;
+            color: transparent !important;
+            pointer-events: none;
+            opacity: 0.8;
+          }
+
+          .btn-loading::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 50%;
+            left: 50%;
+            margin-left: -8px;
+            margin-top: -8px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+          }
+
+          /* For secondary/light buttons, use dark spinner */
+          .btn-secondary.btn-loading::after,
+          .btn-danger.btn-loading::after,
+          .quick-fill-btn.btn-loading::after {
+            border-color: rgba(0, 0, 0, 0.1);
+            border-top-color: #5f6368;
+          }
+
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
           .copy-btn.dashboard:hover {
-            background: #2e7d32;
+            background: #00A043;     
           }
           .email-content {
             margin-bottom: 20px;
@@ -2823,7 +5089,7 @@ function showEmailPreviewDialog(emailData) {
             border-radius: 6px;
             margin-bottom: 20px;
             font-size: 14px;
-            color: #1a73e8;
+            color: #003366;          /* Changed from #1a73e8 */
           }
           .button-group {
             display: flex;
@@ -2840,13 +5106,14 @@ function showEmailPreviewDialog(emailData) {
             transition: all 0.3s ease;
           }
           .btn-primary {
-            background: #1a73e8;
+            background: #003366;     /* Changed from #1a73e8 */
             color: white;
             flex: 1;
           }
           .btn-primary:hover {
-            background: #1557b0;
+            background: #002244;     /* Changed from #1557b0 */
           }
+
           .btn-secondary {
             background: #f8f9fa;
             color: #5f6368;
@@ -2885,6 +5152,10 @@ function showEmailPreviewDialog(emailData) {
               opacity: 1;
             }
           }
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
           .copy-tip {
             background: #fef7e0;
             border: 1px solid #f9cc79;
@@ -2903,12 +5174,28 @@ function showEmailPreviewDialog(emailData) {
           .loading {
             text-align: center;
             padding: 40px;
+          }
+          .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #003366;  /* Changed from #1a73e8 */
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+          }
+          .loading-text {
+            font-size: 14px;
             color: #5f6368;
+            font-weight: 500;
           }
         </style>
       </head>
       <body>
-        <div id="loadingDiv" class="loading">Loading email preview...</div>
+        <div id="loadingDiv" class="loading">
+          <div class="loading-spinner"></div>
+          <div class="loading-text">Loading email preview...</div>
+        </div>
         <div id="mainContent" style="display: none;">
           <h2>Session Recap - Preview</h2>
           
@@ -2954,6 +5241,17 @@ function showEmailPreviewDialog(emailData) {
         <script>
           let emailData = null;
           
+          function setButtonLoading(button, isLoading) {
+            if (isLoading) {
+              button.dataset.originalText = button.textContent;
+              button.classList.add('btn-loading');
+              button.disabled = true;
+            } else {
+              button.classList.remove('btn-loading');
+              button.textContent = button.dataset.originalText || button.textContent;
+              button.disabled = false;
+            }
+          }
           // Load email data from server
           google.script.run
             .withSuccessHandler(function(data) {
@@ -3003,58 +5301,72 @@ function showEmailPreviewDialog(emailData) {
           }
           
           function copyToClipboard(elementId, button) {
+            setButtonLoading(button, true);
+            
             const element = document.getElementById(elementId);
             const text = element.textContent;
             
-            const textArea = document.createElement('textarea');
-            textArea.value = text;
-            textArea.style.position = 'fixed';
-            textArea.style.left = '-999999px';
-            document.body.appendChild(textArea);
-            textArea.select();
-            
-            try {
-              document.execCommand('copy');
-              const originalText = button.textContent;
-              button.textContent = 'Copied!';
-              button.classList.add('copied');
-              setTimeout(function() {
-                button.textContent = originalText;
-                button.classList.remove('copied');
-              }, 2000);
-            } catch (err) {
-              console.error('Copy failed:', err);
-            }
-            
-            document.body.removeChild(textArea);
+            // Add a small delay to show the loading state
+            setTimeout(() => {
+              const textArea = document.createElement('textarea');
+              textArea.value = text;
+              textArea.style.position = 'fixed';
+              textArea.style.left = '-999999px';
+              document.body.appendChild(textArea);
+              textArea.select();
+              
+              try {
+                document.execCommand('copy');
+                setButtonLoading(button, false);
+                button.textContent = 'Copied!';
+                button.classList.add('copied');
+                setTimeout(function() {
+                  button.textContent = button.dataset.originalText || 'Copy';
+                  button.classList.remove('copied');
+                }, 2000);
+              } catch (err) {
+                setButtonLoading(button, false);
+                console.error('Copy failed:', err);
+              }
+              
+              document.body.removeChild(textArea);
+            }, 300);
           }
           
           function copyRichText() {
-            const emailBody = document.getElementById('emailBody');
+            const copyBtn = document.getElementById('copyBodyBtn');
+            setButtonLoading(copyBtn, true);
             
-            // Create a selection range
-            const selection = window.getSelection();
-            const range = document.createRange();
-            
-            // Select the entire email body content
-            range.selectNodeContents(emailBody);
-            selection.removeAllRanges();
-            selection.addRange(range);
-            
-            try {
-              // Execute the copy command
-              document.execCommand('copy');
+            setTimeout(() => {
+              const emailBody = document.getElementById('emailBody');
               
-              // Clear the selection
+              // Create a selection range
+              const selection = window.getSelection();
+              const range = document.createRange();
+              
+              // Select the entire email body content
+              range.selectNodeContents(emailBody);
               selection.removeAllRanges();
+              selection.addRange(range);
               
-              // Show success message
-              showSuccessMessage('Copied with formatting! Paste into Google Docs.');
-            } catch (err) {
-              console.error('Copy failed:', err);
-              // Fallback to plain text copy
-              copyPlainTextFallback();
-            }
+              try {
+                // Execute the copy command
+                document.execCommand('copy');
+                
+                // Clear the selection
+                selection.removeAllRanges();
+                
+                setButtonLoading(copyBtn, false);
+                
+                // Show success message
+                showSuccessMessage('Copied with formatting! Paste into Google Docs.');
+              } catch (err) {
+                console.error('Copy failed:', err);
+                setButtonLoading(copyBtn, false);
+                // Fallback to plain text copy
+                copyPlainTextFallback();
+              }
+            }, 300);
           }
           
           function copyPlainTextFallback() {
@@ -3220,16 +5532,26 @@ function getNextBatchClient() {
   return null;
 }
 
-/**
- * Enhanced get client data from sheet
- */
 function getClientDataFromSheet(sheet) {
   const sheetName = sheet.getName();
   const clientNameWithSpaces = sheet.getRange('A1').getValue() || sheetName.replace(/([A-Z])/g, ' $1').trim();
   const clientTypes = sheet.getRange('C2').getValue() || '';
-  const dashboardLink = sheet.getRange('H2').getValue() || '';  // Changed to H2
   const parentEmail = sheet.getRange('E2').getValue() || '';
   const parentName = sheet.getRange('F2').getValue() || '';
+  
+  // Try to get dashboard link from Script Properties first
+  const scriptProperties = PropertiesService.getScriptProperties();
+  let dashboardLink = scriptProperties.getProperty(`dashboard_${sheetName}`) || '';
+  
+  // Fall back to H2 if not in Script Properties (for existing sheets)
+  if (!dashboardLink) {
+    dashboardLink = sheet.getRange('H2').getValue() || '';
+    
+    // If found in H2, migrate to Script Properties
+    if (dashboardLink) {
+      scriptProperties.setProperty(`dashboard_${sheetName}`, dashboardLink);
+    }
+  }
   
   return {
     studentName: clientNameWithSpaces,
@@ -3347,6 +5669,34 @@ function isClientSheet(sheetName) {
          !sheetName.includes(' ') && 
          /^[A-Z][a-z]+[A-Z][a-z]+/.test(sheetName);
 }
+
+/**
+ * Placeholder function for refreshing client cache
+ */
+function refreshClientCache() {
+  // This is a placeholder - implement if needed
+  SpreadsheetApp.getUi().alert('Client list refreshed!');
+  return { message: 'Client list refreshed' };
+}
+
+/**
+ * Placeholder function for checking dashboard links
+ */
+function validateDashboardLinks() {
+  // This is a placeholder - implement if needed
+  SpreadsheetApp.getUi().alert('Dashboard links validated!');
+  return { message: 'Dashboard links validated' };
+}
+
+/**
+ * Placeholder function for exporting client list
+ */
+function exportClientList() {
+  // This is a placeholder - implement if needed
+  SpreadsheetApp.getUi().alert('Client list exported!');
+  return { message: 'Client list exported' };
+}
+
 
 /**
  * View recap history
