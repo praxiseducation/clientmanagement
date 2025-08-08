@@ -1,0 +1,62 @@
+{
+  "name": "client-management-system-beta2",
+  "version": "2.0.0-beta",
+  "description": "Comprehensive client management system for Smart College with advanced features and modern UI",
+  "main": "src/clientmanager.gs",
+  "scripts": {
+    "deploy": "clasp push",
+    "pull": "clasp pull",
+    "open": "clasp open",
+    "logs": "clasp logs",
+    "test": "echo 'Tests pending implementation'"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/smartcollege/client-management.git"
+  },
+  "keywords": [
+    "google-apps-script",
+    "client-management",
+    "education",
+    "tutoring",
+    "smart-college"
+  ],
+  "author": "Lee Ke",
+  "license": "Proprietary",
+  "private": true,
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "devDependencies": {
+    "@google/clasp": "^2.4.2",
+    "@types/google-apps-script": "^1.0.0"
+  },
+  "files": [
+    "src/",
+    "docs/",
+    "tests/",
+    "README.md",
+    "VERSION",
+    "package.json"
+  ],
+  "beta": {
+    "releaseDate": "2025-08-08",
+    "features": [
+      "Skeleton loading screens",
+      "Advanced search with fuzzy matching",
+      "Offline mode with sync",
+      "Conflict resolution system",
+      "Structured error reporting",
+      "User preferences system",
+      "Background operations",
+      "Undo functionality"
+    ],
+    "improvements": [
+      "Complete data architecture migration",
+      "Modern UI/UX with Material Design",
+      "Performance optimizations",
+      "Enterprise-grade error handling",
+      "Modular code organization"
+    ]
+  }
+}
