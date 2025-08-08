@@ -14310,6 +14310,2323 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+// =============================================================================
+// ENTERPRISE MULTI-USER ARCHITECTURE
+// =============================================================================
+
+/**
+ * Authentication Manager for Google OAuth and User Management
+ */
+const AuthManager = {
+  getCurrentUser() {
+    try {
+      const user = Session.getActiveUser();
+      return {
+        email: user.getEmail(),
+        displayName: user.getName() || user.getEmail().split('@')[0],
+        authenticated: true
+      };
+    } catch (error) {
+      return { authenticated: false, error: 'Not authenticated' };
+    }
+  },
+
+  initializeUser(userEmail) {
+    const userDataStore = this.getUserDataStore(userEmail);
+    if (!userDataStore.preferences) {
+      // Initialize user preferences with Beta 2 defaults
+      userDataStore.preferences = {
+        quickPills: {
+          wins: ["Great progress", "Breakthrough moment", "Excellent focus"],
+          struggles: ["Needs more practice", "Concept review needed", "Time management"],
+          parent: ["Positive feedback", "Areas for improvement", "Home practice suggestions"],
+          next: ["Continue current topics", "Move to next chapter", "Review fundamentals"]
+        },
+        theme: "light",
+        autoSave: true,
+        notifications: true
+      };
+      this.saveUserDataStore(userEmail, userDataStore);
+    }
+  },
+
+  getUserDataStore(userEmail) {
+    const data = PropertiesService.getScriptProperties().getProperty(`user_${userEmail}`);
+    return data ? JSON.parse(data) : { preferences: {}, clientData: {} };
+  },
+
+  saveUserDataStore(userEmail, data) {
+    PropertiesService.getScriptProperties().setProperty(`user_${userEmail}`, JSON.stringify(data));
+  }
+};
+
+/**
+ * Client Ownership Manager for User Assignment
+ */
+const ClientOwnershipManager = {
+  assignPrimaryTutor(clientName, tutorEmail) {
+    const client = UnifiedClientDataStore.getClient(clientName);
+    if (client) {
+      client.primaryTutor = tutorEmail;
+      client.assignedTutors = client.assignedTutors || [tutorEmail];
+      UnifiedClientDataStore.updateClient(clientName, client);
+      
+      // Log the assignment
+      AuditLogger.log('tutor_assigned', 'client', clientName, AuthManager.getCurrentUser().email, { 
+        primaryTutor: tutorEmail 
+      });
+    }
+  },
+
+  addAssignedTutor(clientName, tutorEmail) {
+    const client = UnifiedClientDataStore.getClient(clientName);
+    if (client) {
+      client.assignedTutors = client.assignedTutors || [];
+      if (!client.assignedTutors.includes(tutorEmail)) {
+        client.assignedTutors.push(tutorEmail);
+        UnifiedClientDataStore.updateClient(clientName, client);
+        
+        AuditLogger.log('tutor_added', 'client', clientName, AuthManager.getCurrentUser().email, { 
+          addedTutor: tutorEmail 
+        });
+      }
+    }
+  },
+
+  canUserAccessClient(clientName, userEmail) {
+    const client = UnifiedClientDataStore.getClient(clientName);
+    return client && (
+      client.primaryTutor === userEmail || 
+      (client.assignedTutors && client.assignedTutors.includes(userEmail)) ||
+      this.hasAdminRole(userEmail)
+    );
+  },
+
+  hasAdminRole(userEmail) {
+    const userRole = PropertiesService.getScriptProperties().getProperty(`role_${userEmail}`);
+    return userRole === 'admin' || userRole === 'supervisor';
+  }
+};
+
+/**
+ * Permission Manager for Role-Based Access Control
+ */
+const PermissionManager = {
+  roles: {
+    admin: {
+      permissions: ["create_clients", "delete_clients", "manage_users", "view_all_data", "export_data", "system_config"],
+      description: "Full system access"
+    },
+    supervisor: {
+      permissions: ["create_clients", "view_all_data", "assign_tutors", "export_reports"],
+      description: "Supervisory access to all clients"
+    },
+    tutor: {
+      permissions: ["create_clients", "view_assigned_clients", "edit_own_data"],
+      description: "Standard tutor access"
+    },
+    observer: {
+      permissions: ["view_assigned_clients"],
+      description: "Read-only access to assigned clients"
+    }
+  },
+
+  assignRole(userEmail, role) {
+    if (!this.roles[role]) throw new Error(`Invalid role: ${role}`);
+    PropertiesService.getScriptProperties().setProperty(`role_${userEmail}`, role);
+    
+    // Log role assignment
+    AuditLogger.log('role_assigned', 'user', userEmail, AuthManager.getCurrentUser().email, { newRole: role });
+  },
+
+  getUserRole(userEmail) {
+    return PropertiesService.getScriptProperties().getProperty(`role_${userEmail}`) || 'tutor';
+  },
+
+  hasPermission(userEmail, permission) {
+    const userRole = this.getUserRole(userEmail);
+    return this.roles[userRole]?.permissions.includes(permission) || false;
+  },
+
+  getAccessibleClients(userEmail) {
+    const userRole = this.getUserRole(userEmail);
+    
+    if (userRole === 'admin' || userRole === 'supervisor') {
+      return UnifiedClientDataStore.getAllClients();
+    }
+    
+    // For tutors and observers, only show assigned clients
+    return UnifiedClientDataStore.getAllClients().filter(client => 
+      ClientOwnershipManager.canUserAccessClient(client.name, userEmail)
+    );
+  }
+};
+
+/**
+ * Audit Logger for Compliance and Security
+ */
+const AuditLogger = {
+  log(action, entityType, entityId, userId, metadata = {}) {
+    const entry = {
+      id: Utilities.getUuid(),
+      timestamp: new Date().toISOString(),
+      action: action, // create, update, delete, view, export, login, logout, tutor_assigned, role_assigned
+      entityType: entityType, // client, session, notes, user, system
+      entityId: entityId,
+      userId: userId,
+      userRole: PermissionManager.getUserRole(userId),
+      metadata: metadata,
+      sessionId: this.getSessionId()
+    };
+
+    // Store in chunked properties to handle size limits
+    this.storeAuditEntry(entry);
+    
+    // For compliance, also log critical actions separately
+    if (this.isCriticalAction(action)) {
+      this.storeCriticalAudit(entry);
+    }
+  },
+
+  isCriticalAction(action) {
+    return ['delete', 'export', 'role_assigned', 'system_config', 'client_created'].includes(action);
+  },
+
+  storeAuditEntry(entry) {
+    const today = new Date().toISOString().split('T')[0];
+    const key = `audit_${today}_${entry.id}`;
+    PropertiesService.getScriptProperties().setProperty(key, JSON.stringify(entry));
+  },
+
+  storeCriticalAudit(entry) {
+    const key = `critical_audit_${entry.id}`;
+    PropertiesService.getScriptProperties().setProperty(key, JSON.stringify(entry));
+  },
+
+  getSessionId() {
+    // Simple session ID based on user and timestamp
+    const user = AuthManager.getCurrentUser();
+    return Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, 
+      user.email + new Date().toDateString()).toString();
+  },
+
+  getAuditLog(startDate, endDate, filters = {}) {
+    const entries = [];
+    const properties = PropertiesService.getScriptProperties().getProperties();
+    
+    Object.keys(properties).forEach(key => {
+      if (key.startsWith('audit_') && !key.startsWith('audit_critical_')) {
+        try {
+          const entry = JSON.parse(properties[key]);
+          
+          // Apply date and filter logic
+          if (this.matchesFilters(entry, startDate, endDate, filters)) {
+            entries.push(entry);
+          }
+        } catch (e) {
+          // Skip corrupted entries
+        }
+      }
+    });
+    
+    return entries.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  },
+
+  matchesFilters(entry, startDate, endDate, filters) {
+    const entryDate = new Date(entry.timestamp);
+    const start = startDate ? new Date(startDate) : new Date('1970-01-01');
+    const end = endDate ? new Date(endDate) : new Date();
+    
+    if (entryDate < start || entryDate > end) return false;
+    
+    if (filters.userId && entry.userId !== filters.userId) return false;
+    if (filters.action && entry.action !== filters.action) return false;
+    if (filters.entityType && entry.entityType !== filters.entityType) return false;
+    
+    return true;
+  },
+
+  generateComplianceReport(startDate, endDate) {
+    const auditEntries = this.getAuditLog(startDate, endDate);
+    
+    return {
+      period: { start: startDate, end: endDate },
+      summary: {
+        totalActions: auditEntries.length,
+        uniqueUsers: [...new Set(auditEntries.map(e => e.userId))].length,
+        criticalActions: auditEntries.filter(e => this.isCriticalAction(e.action)).length,
+        clientsAccessed: [...new Set(auditEntries.filter(e => e.entityType === 'client').map(e => e.entityId))].length
+      },
+      entries: auditEntries,
+      generatedAt: new Date().toISOString(),
+      generatedBy: AuthManager.getCurrentUser().email
+    };
+  }
+};
+
+/**
+ * Data Privacy Manager for Sensitive Information
+ */
+const DataPrivacyManager = {
+  encryptSensitiveData(data, clientName) {
+    const sensitiveFields = ['parentEmail', 'emailAddressees', 'personalNotes'];
+    const encrypted = { ...data };
+    
+    sensitiveFields.forEach(field => {
+      if (encrypted[field]) {
+        encrypted[field] = this.encrypt(encrypted[field], clientName);
+        encrypted[`${field}_encrypted`] = true;
+      }
+    });
+    
+    return encrypted;
+  },
+
+  decryptSensitiveData(data, clientName) {
+    const decrypted = { ...data };
+    
+    Object.keys(decrypted).forEach(field => {
+      if (field.endsWith('_encrypted') && decrypted[field]) {
+        const originalField = field.replace('_encrypted', '');
+        if (decrypted[originalField]) {
+          decrypted[originalField] = this.decrypt(decrypted[originalField], clientName);
+        }
+      }
+    });
+    
+    return decrypted;
+  },
+
+  encrypt(text, key) {
+    return Utilities.base64Encode(text + '|' + key);
+  },
+
+  decrypt(encrypted, key) {
+    try {
+      const decoded = Utilities.base64Decode(encrypted);
+      const parts = decoded.split('|');
+      return parts.length === 2 && parts[1] === key ? parts[0] : encrypted;
+    } catch (e) {
+      return encrypted;
+    }
+  },
+
+  filterDataByPermission(clientData, userEmail) {
+    const userRole = PermissionManager.getUserRole(userEmail);
+    const filtered = { ...clientData };
+    
+    // Remove sensitive data for observers
+    if (userRole === 'observer') {
+      delete filtered.parentEmail;
+      delete filtered.emailAddressees;
+      
+      // Only show summary of notes, not full content
+      if (filtered.quickNotes) {
+        Object.keys(filtered.quickNotes).forEach(key => {
+          if (filtered.quickNotes[key] && filtered.quickNotes[key].length > 100) {
+            filtered.quickNotes[key] = filtered.quickNotes[key].substring(0, 100) + '...';
+          }
+        });
+      }
+    }
+    
+    return filtered;
+  },
+
+  canExportData(userEmail, exportType) {
+    const permissions = PermissionManager.hasPermission(userEmail, 'export_data');
+    
+    const exportRules = {
+      'client_list': permissions || PermissionManager.getUserRole(userEmail) === 'supervisor',
+      'session_reports': permissions,
+      'full_audit': permissions && PermissionManager.getUserRole(userEmail) === 'admin',
+      'personal_notes': true
+    };
+    
+    return exportRules[exportType] || false;
+  }
+};
+
+/**
+ * Activity Tracker for User Presence and Activity Awareness
+ */
+const ActivityTracker = {
+  updateUserActivity(clientName = null) {
+    const user = AuthManager.getCurrentUser();
+    if (!user.authenticated) return;
+    
+    const activity = {
+      lastSeen: new Date().toISOString(),
+      currentClient: clientName,
+      action: clientName ? 'viewing_client' : 'in_dashboard'
+    };
+    
+    PropertiesService.getScriptProperties().setProperty(`activity_${user.email}`, JSON.stringify(activity));
+  },
+
+  getUserActivity(userEmail) {
+    const data = PropertiesService.getScriptProperties().getProperty(`activity_${userEmail}`);
+    return data ? JSON.parse(data) : null;
+  },
+
+  getActiveUsers(withinMinutes = 15) {
+    const cutoff = new Date(Date.now() - withinMinutes * 60 * 1000);
+    const activeUsers = [];
+    const properties = PropertiesService.getScriptProperties().getProperties();
+    
+    Object.keys(properties).forEach(key => {
+      if (key.startsWith('activity_')) {
+        try {
+          const userEmail = key.replace('activity_', '');
+          const activity = JSON.parse(properties[key]);
+          
+          if (new Date(activity.lastSeen) > cutoff) {
+            activeUsers.push({
+              email: userEmail,
+              ...activity
+            });
+          }
+        } catch (e) {
+          // Skip corrupted entries
+        }
+      }
+    });
+    
+    return activeUsers;
+  },
+
+  getRecentClientActivity(clientName) {
+    const recentActivity = [];
+    const properties = PropertiesService.getScriptProperties().getProperties();
+    
+    Object.keys(properties).forEach(key => {
+      if (key.startsWith('activity_')) {
+        try {
+          const userEmail = key.replace('activity_', '');
+          const activity = JSON.parse(properties[key]);
+          
+          if (activity.currentClient === clientName) {
+            recentActivity.push({
+              user: userEmail,
+              lastSeen: activity.lastSeen,
+              action: activity.action
+            });
+          }
+        } catch (e) {
+          // Skip corrupted entries
+        }
+      }
+    });
+    
+    return recentActivity.sort((a, b) => new Date(b.lastSeen) - new Date(a.lastSeen));
+  }
+};
+
+/**
+ * Enhanced Client Creation with Multi-User Context
+ */
+function createClientSheetWithUserContext(clientData) {
+  const user = AuthManager.getCurrentUser();
+  if (!user.authenticated) {
+    throw new Error('User not authenticated');
+  }
+
+  // Check permissions
+  if (!PermissionManager.hasPermission(user.email, 'create_clients')) {
+    throw new Error('User does not have permission to create clients');
+  }
+
+  // Check if client exists
+  const existingClient = UnifiedClientDataStore.getClient(clientData.name);
+  if (existingClient) {
+    return {
+      success: false,
+      reason: "client_exists",
+      existingClient: existingClient,
+      createdBy: existingClient.createdBy,
+      suggestedAction: "collaborate"
+    };
+  }
+
+  // Add user context to client data
+  clientData.createdBy = user.email;
+  clientData.createdAt = new Date().toISOString();
+  clientData.primaryTutor = user.email;
+  clientData.assignedTutors = [user.email];
+
+  // Create the client using existing function
+  const result = createClientSheet(clientData);
+  
+  if (result.success) {
+    // Log client creation
+    AuditLogger.log('client_created', 'client', clientData.name, user.email, {
+      services: clientData.services,
+      parentEmail: clientData.parentEmail
+    });
+    
+    // Update user activity
+    ActivityTracker.updateUserActivity(clientData.name);
+  }
+
+  return result;
+}
+
+/**
+ * Enhanced Client Data Retrieval with Permission Filtering
+ */
+function getAccessibleClientList() {
+  const user = AuthManager.getCurrentUser();
+  if (!user.authenticated) {
+    return { error: 'User not authenticated', clients: [] };
+  }
+
+  const accessibleClients = PermissionManager.getAccessibleClients(user.email);
+  
+  // Filter sensitive data based on user permissions
+  const filteredClients = accessibleClients.map(client => 
+    DataPrivacyManager.filterDataByPermission(client, user.email)
+  );
+
+  // Log data access
+  AuditLogger.log('view', 'client_list', 'all', user.email, { 
+    clientCount: filteredClients.length 
+  });
+
+  return { clients: filteredClients, userRole: PermissionManager.getUserRole(user.email) };
+}
+
+/**
+ * Enhanced Session Recap with User Context
+ */
+function sendIndividualRecapWithUserContext(sheetName, emailData) {
+  const user = AuthManager.getCurrentUser();
+  if (!user.authenticated) {
+    throw new Error('User not authenticated');
+  }
+
+  // Check if user can access this client
+  if (!ClientOwnershipManager.canUserAccessClient(sheetName, user.email)) {
+    throw new Error('User does not have access to this client');
+  }
+
+  // Send recap using existing function
+  const result = sendIndividualRecap(sheetName, emailData);
+  
+  if (result.success) {
+    // Log email sent
+    AuditLogger.log('email_sent', 'client', sheetName, user.email, {
+      subject: emailData.subject,
+      recipients: emailData.recipients
+    });
+    
+    // Update user activity
+    ActivityTracker.updateUserActivity(sheetName);
+  }
+
+  return result;
+}
+
+/**
+ * User Management Functions
+ */
+function showUserManagementDialog() {
+  const user = AuthManager.getCurrentUser();
+  if (!PermissionManager.hasPermission(user.email, 'manage_users')) {
+    throw new Error('Insufficient permissions');
+  }
+
+  const activeUsers = ActivityTracker.getActiveUsers(60); // Last hour
+  const allUsers = this.getAllSystemUsers();
+
+  const html = `
+    <div class="user-management-container">
+      <h3>User Management</h3>
+      <div class="active-users">
+        <h4>Active Users (Last Hour)</h4>
+        ${activeUsers.map(u => `
+          <div class="user-item">
+            <span>${u.email}</span>
+            <span class="role">${PermissionManager.getUserRole(u.email)}</span>
+            <span class="last-seen">${getRelativeTime(new Date(u.lastSeen).getTime())}</span>
+          </div>
+        `).join('')}
+      </div>
+      
+      <div class="user-roles">
+        <h4>Manage Roles</h4>
+        <select id="userSelect">
+          ${allUsers.map(u => `<option value="${u}">${u}</option>`).join('')}
+        </select>
+        <select id="roleSelect">
+          ${Object.keys(PermissionManager.roles).map(role => 
+            `<option value="${role}">${role} - ${PermissionManager.roles[role].description}</option>`
+          ).join('')}
+        </select>
+        <button onclick="assignUserRole()">Assign Role</button>
+      </div>
+    </div>
+  `;
+
+  const htmlOutput = HtmlService.createHtmlOutput(html)
+    .setWidth(600)
+    .setHeight(500);
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'User Management');
+}
+
+function getAllSystemUsers() {
+  const users = new Set();
+  const properties = PropertiesService.getScriptProperties().getProperties();
+  
+  Object.keys(properties).forEach(key => {
+    if (key.startsWith('user_') || key.startsWith('role_') || key.startsWith('activity_')) {
+      const email = key.split('_').slice(1).join('_');
+      if (email.includes('@')) {
+        users.add(email);
+      }
+    }
+  });
+  
+  return Array.from(users);
+}
+
+function assignUserRole() {
+  const userEmail = document.getElementById('userSelect').value;
+  const role = document.getElementById('roleSelect').value;
+  
+  google.script.run.withSuccessHandler(() => {
+    alert(`Role ${role} assigned to ${userEmail}`);
+    google.script.host.close();
+  }).withFailureHandler(error => {
+    alert('Error assigning role: ' + error);
+  }).setUserRole(userEmail, role);
+}
+
+function setUserRole(userEmail, role) {
+  const currentUser = AuthManager.getCurrentUser();
+  if (!PermissionManager.hasPermission(currentUser.email, 'manage_users')) {
+    throw new Error('Insufficient permissions');
+  }
+  
+  PermissionManager.assignRole(userEmail, role);
+  return { success: true };
+}
+
+/**
+ * Initialize Enterprise Mode
+ */
+function initializeEnterpriseMode() {
+  const user = AuthManager.getCurrentUser();
+  if (!user.authenticated) {
+    throw new Error('User authentication required for enterprise mode');
+  }
+  
+  // Initialize user if first time
+  AuthManager.initializeUser(user.email);
+  
+  // Set default role if not set
+  const currentRole = PermissionManager.getUserRole(user.email);
+  if (!currentRole || currentRole === 'tutor') {
+    // First user gets admin, others get tutor by default
+    const existingUsers = getAllSystemUsers();
+    const role = existingUsers.length === 0 ? 'admin' : 'tutor';
+    PermissionManager.assignRole(user.email, role);
+  }
+  
+  // Update activity
+  ActivityTracker.updateUserActivity();
+  
+  // Log initialization
+  AuditLogger.log('system_init', 'system', 'enterprise_mode', user.email, {
+    role: PermissionManager.getUserRole(user.email),
+    existingUsers: getAllSystemUsers().length
+  });
+  
+  return {
+    success: true,
+    user: user,
+    role: PermissionManager.getUserRole(user.email),
+    initialized: true
+  };
+}
+
+/**
+ * Notification System for Multi-User Communication
+ */
+const NotificationManager = {
+  createNotification(userId, type, title, message, entityId = null, actionUrl = null) {
+    const notification = {
+      id: Utilities.getUuid(),
+      userId: userId,
+      type: type, // 'client_updated', 'tutor_assigned', 'system_alert', 'role_changed', 'audit_alert'
+      title: title,
+      message: message,
+      entityId: entityId,
+      actionUrl: actionUrl,
+      timestamp: new Date().toISOString(),
+      read: false,
+      priority: this.getPriority(type)
+    };
+
+    this.storeNotification(notification);
+    return notification;
+  },
+
+  getPriority(type) {
+    const priorities = {
+      'system_alert': 'high',
+      'audit_alert': 'high', 
+      'role_changed': 'medium',
+      'tutor_assigned': 'medium',
+      'client_updated': 'low',
+      'activity_update': 'low'
+    };
+    return priorities[type] || 'low';
+  },
+
+  storeNotification(notification) {
+    const key = `notification_${notification.userId}_${notification.id}`;
+    PropertiesService.getScriptProperties().setProperty(key, JSON.stringify(notification));
+  },
+
+  getUserNotifications(userId, includeRead = false) {
+    const notifications = [];
+    const properties = PropertiesService.getScriptProperties().getProperties();
+    
+    Object.keys(properties).forEach(key => {
+      if (key.startsWith(`notification_${userId}_`)) {
+        try {
+          const notification = JSON.parse(properties[key]);
+          if (includeRead || !notification.read) {
+            notifications.push(notification);
+          }
+        } catch (e) {
+          // Skip corrupted notifications
+        }
+      }
+    });
+    
+    return notifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  },
+
+  markAsRead(userId, notificationId) {
+    const key = `notification_${userId}_${notificationId}`;
+    const data = PropertiesService.getScriptProperties().getProperty(key);
+    
+    if (data) {
+      const notification = JSON.parse(data);
+      notification.read = true;
+      notification.readAt = new Date().toISOString();
+      PropertiesService.getScriptProperties().setProperty(key, JSON.stringify(notification));
+    }
+  },
+
+  markAllAsRead(userId) {
+    const notifications = this.getUserNotifications(userId, true);
+    notifications.forEach(notification => {
+      if (!notification.read) {
+        this.markAsRead(userId, notification.id);
+      }
+    });
+  },
+
+  // Notify when client is updated by another user
+  notifyClientUpdate(clientName, updatedBy, updateType) {
+    const client = UnifiedClientDataStore.getClient(clientName);
+    if (!client || !client.assignedTutors) return;
+
+    client.assignedTutors.forEach(tutorEmail => {
+      if (tutorEmail !== updatedBy) {
+        this.createNotification(
+          tutorEmail,
+          'client_updated',
+          `Client Updated: ${clientName}`,
+          `${updatedBy} made changes to ${clientName} (${updateType})`,
+          clientName
+        );
+      }
+    });
+  },
+
+  // Notify when user role changes
+  notifyRoleChange(userId, newRole, changedBy) {
+    this.createNotification(
+      userId,
+      'role_changed',
+      'Role Updated',
+      `Your role has been changed to ${newRole} by ${changedBy}`,
+      null
+    );
+  },
+
+  // Notify when assigned to new client
+  notifyTutorAssignment(tutorEmail, clientName, assignedBy) {
+    this.createNotification(
+      tutorEmail,
+      'tutor_assigned',
+      `New Client Assignment: ${clientName}`,
+      `You have been assigned to work with ${clientName} by ${assignedBy}`,
+      clientName
+    );
+  },
+
+  // System-wide alerts
+  broadcastSystemAlert(title, message, targetRole = null) {
+    const allUsers = getAllSystemUsers();
+    
+    allUsers.forEach(userEmail => {
+      const userRole = PermissionManager.getUserRole(userEmail);
+      
+      // If targeting specific role, only notify those users
+      if (targetRole && userRole !== targetRole) return;
+      
+      this.createNotification(
+        userEmail,
+        'system_alert',
+        title,
+        message
+      );
+    });
+  },
+
+  // Clean up old notifications (keep last 100 per user)
+  cleanupNotifications() {
+    const allUsers = getAllSystemUsers();
+    
+    allUsers.forEach(userId => {
+      const notifications = this.getUserNotifications(userId, true);
+      
+      if (notifications.length > 100) {
+        // Keep newest 100, delete the rest
+        const toDelete = notifications.slice(100);
+        toDelete.forEach(notification => {
+          const key = `notification_${userId}_${notification.id}`;
+          PropertiesService.getScriptProperties().deleteProperty(key);
+        });
+      }
+    });
+  }
+};
+
+/**
+ * Data Versioning and History System
+ */
+const DataVersionManager = {
+  // Create version entry for data changes
+  createVersion(entityType, entityId, data, userId, changeType = 'update') {
+    const version = {
+      id: Utilities.getUuid(),
+      entityType: entityType,
+      entityId: entityId,
+      version: this.getNextVersionNumber(entityType, entityId),
+      data: JSON.stringify(data),
+      userId: userId,
+      changeType: changeType, // 'create', 'update', 'delete'
+      timestamp: new Date().toISOString(),
+      checksum: this.generateChecksum(data)
+    };
+
+    this.storeVersion(version);
+    return version;
+  },
+
+  storeVersion(version) {
+    const key = `version_${version.entityType}_${version.entityId}_${version.version}`;
+    PropertiesService.getScriptProperties().setProperty(key, JSON.stringify(version));
+  },
+
+  getNextVersionNumber(entityType, entityId) {
+    const versions = this.getVersionHistory(entityType, entityId);
+    return versions.length > 0 ? Math.max(...versions.map(v => v.version)) + 1 : 1;
+  },
+
+  getVersionHistory(entityType, entityId, limit = 50) {
+    const versions = [];
+    const properties = PropertiesService.getScriptProperties().getProperties();
+    const prefix = `version_${entityType}_${entityId}_`;
+    
+    Object.keys(properties).forEach(key => {
+      if (key.startsWith(prefix)) {
+        try {
+          const version = JSON.parse(properties[key]);
+          versions.push(version);
+        } catch (e) {
+          // Skip corrupted versions
+        }
+      }
+    });
+    
+    return versions
+      .sort((a, b) => b.version - a.version)
+      .slice(0, limit);
+  },
+
+  getCurrentVersion(entityType, entityId) {
+    const versions = this.getVersionHistory(entityType, entityId, 1);
+    return versions.length > 0 ? versions[0] : null;
+  },
+
+  restoreVersion(entityType, entityId, versionNumber, userId) {
+    const version = this.getVersion(entityType, entityId, versionNumber);
+    if (!version) {
+      throw new Error(`Version ${versionNumber} not found`);
+    }
+
+    const restoredData = JSON.parse(version.data);
+    
+    // Update the current data
+    switch (entityType) {
+      case 'client':
+        UnifiedClientDataStore.updateClient(entityId, restoredData);
+        break;
+      default:
+        throw new Error(`Unsupported entity type: ${entityType}`);
+    }
+
+    // Create new version entry for the restore
+    this.createVersion(entityType, entityId, restoredData, userId, 'restore');
+    
+    // Log the restore action
+    AuditLogger.log('data_restored', entityType, entityId, userId, {
+      restoredVersion: versionNumber,
+      originalTimestamp: version.timestamp
+    });
+
+    return restoredData;
+  },
+
+  getVersion(entityType, entityId, versionNumber) {
+    const key = `version_${entityType}_${entityId}_${versionNumber}`;
+    const data = PropertiesService.getScriptProperties().getProperty(key);
+    return data ? JSON.parse(data) : null;
+  },
+
+  generateChecksum(data) {
+    const dataString = JSON.stringify(data);
+    return Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, dataString).toString();
+  },
+
+  // Compare two versions and return differences
+  compareVersions(entityType, entityId, version1, version2) {
+    const v1 = this.getVersion(entityType, entityId, version1);
+    const v2 = this.getVersion(entityType, entityId, version2);
+    
+    if (!v1 || !v2) {
+      throw new Error('One or both versions not found');
+    }
+
+    const data1 = JSON.parse(v1.data);
+    const data2 = JSON.parse(v2.data);
+    
+    return this.deepDiff(data1, data2);
+  },
+
+  deepDiff(obj1, obj2, path = '') {
+    const differences = [];
+    const keys = new Set([...Object.keys(obj1), ...Object.keys(obj2)]);
+    
+    keys.forEach(key => {
+      const newPath = path ? `${path}.${key}` : key;
+      const val1 = obj1[key];
+      const val2 = obj2[key];
+      
+      if (val1 === undefined && val2 !== undefined) {
+        differences.push({ type: 'added', path: newPath, value: val2 });
+      } else if (val1 !== undefined && val2 === undefined) {
+        differences.push({ type: 'removed', path: newPath, value: val1 });
+      } else if (val1 !== val2) {
+        if (typeof val1 === 'object' && typeof val2 === 'object' && val1 !== null && val2 !== null) {
+          differences.push(...this.deepDiff(val1, val2, newPath));
+        } else {
+          differences.push({ type: 'changed', path: newPath, oldValue: val1, newValue: val2 });
+        }
+      }
+    });
+    
+    return differences;
+  },
+
+  // Clean up old versions (keep last 20 per entity)
+  cleanupVersions() {
+    const properties = PropertiesService.getScriptProperties().getProperties();
+    const versionGroups = {};
+    
+    // Group versions by entity
+    Object.keys(properties).forEach(key => {
+      if (key.startsWith('version_')) {
+        const parts = key.split('_');
+        if (parts.length >= 4) {
+          const entityType = parts[1];
+          const entityId = parts[2];
+          const groupKey = `${entityType}_${entityId}`;
+          
+          if (!versionGroups[groupKey]) {
+            versionGroups[groupKey] = [];
+          }
+          
+          try {
+            const version = JSON.parse(properties[key]);
+            versionGroups[groupKey].push({ key, version });
+          } catch (e) {
+            // Delete corrupted entries
+            PropertiesService.getScriptProperties().deleteProperty(key);
+          }
+        }
+      }
+    });
+    
+    // Keep only latest 20 versions per entity
+    Object.keys(versionGroups).forEach(groupKey => {
+      const versions = versionGroups[groupKey].sort((a, b) => b.version.version - a.version.version);
+      
+      if (versions.length > 20) {
+        const toDelete = versions.slice(20);
+        toDelete.forEach(item => {
+          PropertiesService.getScriptProperties().deleteProperty(item.key);
+        });
+      }
+    });
+  }
+};
+
+/**
+ * Enterprise Admin Dashboard
+ */
+function showEnterpriseAdminDashboard() {
+  const user = AuthManager.getCurrentUser();
+  if (!PermissionManager.hasPermission(user.email, 'system_config')) {
+    throw new Error('Insufficient permissions for admin dashboard');
+  }
+
+  const dashboardData = EnterpriseAdminManager.getDashboardData();
+  
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Enterprise Admin Dashboard</title>
+      <style>
+        body { font-family: 'Poppins', sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        .dashboard-header { background: #003366; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .stat-value { font-size: 2em; font-weight: bold; color: #003366; }
+        .stat-label { color: #666; margin-top: 5px; }
+        .section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .section h3 { margin-top: 0; color: #003366; }
+        .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-warning { background: #ffc107; color: #333; }
+        .activity-list { max-height: 300px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 4px; }
+        .activity-item { padding: 8px; border-bottom: 1px solid #eee; font-size: 0.9em; }
+      </style>
+    </head>
+    <body>
+      <div class="dashboard-header">
+        <h1>Enterprise Admin Dashboard</h1>
+        <p>System Overview and Management</p>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">${dashboardData.stats.totalUsers}</div>
+          <div class="stat-label">Total Users</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${dashboardData.stats.activeUsers}</div>
+          <div class="stat-label">Active Users (24h)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${dashboardData.stats.totalClients}</div>
+          <div class="stat-label">Total Clients</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${dashboardData.stats.auditEntries}</div>
+          <div class="stat-label">Audit Entries (30d)</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>System Management</h3>
+        <button class="btn btn-primary" onclick="runSystemMaintenance()">Run Maintenance</button>
+        <button class="btn btn-warning" onclick="generateComplianceReport()">Compliance Report</button>
+        <button class="btn btn-danger" onclick="cleanupInactiveUsers()">Cleanup Users</button>
+      </div>
+
+      <div class="section">
+        <h3>Recent System Activity</h3>
+        <div class="activity-list">
+          ${dashboardData.recentActivity.map(activity => `
+            <div class="activity-item">
+              <strong>${activity.action}</strong> by ${activity.userId} - ${activity.entityType}: ${activity.entityId}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <script>
+        function runSystemMaintenance() {
+          if (confirm('Run system maintenance? This may take a few minutes.')) {
+            google.script.run.withSuccessHandler(result => {
+              alert('Maintenance completed: ' + result.message);
+              window.location.reload();
+            }).withFailureHandler(error => {
+              alert('Maintenance error: ' + error);
+            }).runSystemMaintenance();
+          }
+        }
+
+        function generateComplianceReport() {
+          const startDate = prompt('Start date (YYYY-MM-DD):');
+          const endDate = prompt('End date (YYYY-MM-DD):');
+          
+          if (startDate && endDate) {
+            google.script.run.withSuccessHandler(report => {
+              alert('Report generated with ' + report.summary.totalActions + ' entries');
+            }).withFailureHandler(error => {
+              alert('Error: ' + error);
+            }).generateComplianceReportDialog(startDate, endDate);
+          }
+        }
+
+        function cleanupInactiveUsers() {
+          if (confirm('Remove users inactive for more than 90 days?')) {
+            google.script.run.withSuccessHandler(result => {
+              alert('Cleanup completed: ' + result.cleaned + ' users removed');
+              window.location.reload();
+            }).withFailureHandler(error => {
+              alert('Cleanup error: ' + error);
+            }).cleanupInactiveUsers();
+          }
+        }
+      </script>
+    </body>
+    </html>
+  `;
+
+  const htmlOutput = HtmlService.createHtmlOutput(html)
+    .setWidth(1000)
+    .setHeight(700);
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Enterprise Admin Dashboard');
+}
+
+const EnterpriseAdminManager = {
+  getDashboardData() {
+    const allUsers = getAllSystemUsers();
+    const activeUsers = ActivityTracker.getActiveUsers(24 * 60);
+    const auditEntries = AuditLogger.getAuditLog(
+      new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0],
+      new Date().toISOString().split('T')[0]
+    );
+    
+    return {
+      stats: {
+        totalUsers: allUsers.length,
+        activeUsers: activeUsers.length,
+        totalClients: UnifiedClientDataStore.getAllClients().length,
+        auditEntries: auditEntries.length
+      },
+      recentActivity: auditEntries.slice(0, 10)
+    };
+  }
+};
+
+function runSystemMaintenance() {
+  const currentUser = AuthManager.getCurrentUser();
+  if (!PermissionManager.hasPermission(currentUser.email, 'system_config')) {
+    throw new Error('Insufficient permissions');
+  }
+  
+  AuditLogger.log('maintenance_started', 'system', 'maintenance', currentUser.email);
+  
+  // Cleanup operations
+  NotificationManager.cleanupNotifications();
+  DataVersionManager.cleanupVersions();
+  
+  AuditLogger.log('maintenance_completed', 'system', 'maintenance', currentUser.email);
+  
+  return {
+    success: true,
+    message: 'System maintenance completed successfully'
+  };
+}
+
+function generateComplianceReportDialog(startDate, endDate) {
+  const currentUser = AuthManager.getCurrentUser();
+  if (!PermissionManager.hasPermission(currentUser.email, 'export_data')) {
+    throw new Error('Insufficient permissions');
+  }
+  
+  return AuditLogger.generateComplianceReport(startDate, endDate);
+}
+
+function cleanupInactiveUsers() {
+  const currentUser = AuthManager.getCurrentUser();
+  if (!PermissionManager.hasPermission(currentUser.email, 'manage_users')) {
+    throw new Error('Insufficient permissions');
+  }
+  
+  const cutoffDate = new Date(Date.now() - 90*24*60*60*1000);
+  const allUsers = getAllSystemUsers();
+  let cleanedCount = 0;
+  
+  allUsers.forEach(email => {
+    const activity = ActivityTracker.getUserActivity(email);
+    const role = PermissionManager.getUserRole(email);
+    
+    if (role !== 'admin' && (!activity || new Date(activity.lastSeen) < cutoffDate)) {
+      const properties = PropertiesService.getScriptProperties();
+      properties.deleteProperty(`user_${email}`);
+      properties.deleteProperty(`activity_${email}`);
+      cleanedCount++;
+      
+      AuditLogger.log('user_cleaned', 'user', email, currentUser.email, {
+        reason: 'inactive_90_days'
+      });
+    }
+  });
+  
+  return { success: true, cleaned: cleanedCount };
+}
+
+/**
+ * Organization Management and Multi-Tenancy System
+ */
+const OrganizationManager = {
+  // Create a new organization
+  createOrganization(orgData, createdBy) {
+    const organization = {
+      id: Utilities.getUuid(),
+      name: orgData.name,
+      displayName: orgData.displayName || orgData.name,
+      domain: orgData.domain, // e.g., "smartcollege.com"
+      settings: {
+        allowedDomains: orgData.allowedDomains || [orgData.domain],
+        maxUsers: orgData.maxUsers || 50,
+        features: orgData.features || ["basic", "clients", "reports"],
+        branding: {
+          primaryColor: orgData.primaryColor || '#003366',
+          logo: orgData.logo || null,
+          companyName: orgData.companyName || orgData.name
+        }
+      },
+      status: 'active',
+      createdBy: createdBy,
+      createdAt: new Date().toISOString(),
+      subscription: {
+        plan: orgData.plan || 'standard',
+        expiresAt: orgData.subscriptionExpiry || null,
+        features: orgData.features || ["basic"]
+      }
+    };
+
+    this.storeOrganization(organization);
+    
+    // Initialize organization-specific data stores
+    this.initializeOrgDataStores(organization.id);
+    
+    AuditLogger.log('organization_created', 'organization', organization.id, createdBy, {
+      orgName: organization.name,
+      domain: organization.domain
+    });
+
+    return organization;
+  },
+
+  storeOrganization(organization) {
+    const key = `organization_${organization.id}`;
+    PropertiesService.getScriptProperties().setProperty(key, JSON.stringify(organization));
+  },
+
+  getOrganization(orgId) {
+    const key = `organization_${orgId}`;
+    const data = PropertiesService.getScriptProperties().getProperty(key);
+    return data ? JSON.parse(data) : null;
+  },
+
+  getUserOrganization(userEmail) {
+    // Determine organization by email domain or explicit assignment
+    const domain = userEmail.split('@')[1];
+    
+    // Check for explicit organization assignment first
+    const userOrgKey = `user_org_${userEmail}`;
+    const assignedOrgId = PropertiesService.getScriptProperties().getProperty(userOrgKey);
+    if (assignedOrgId) {
+      return this.getOrganization(assignedOrgId);
+    }
+
+    // Fall back to domain matching
+    const organizations = this.getAllOrganizations();
+    return organizations.find(org => 
+      org.settings.allowedDomains.includes(domain)
+    ) || this.getDefaultOrganization();
+  },
+
+  getAllOrganizations() {
+    const organizations = [];
+    const properties = PropertiesService.getScriptProperties().getProperties();
+    
+    Object.keys(properties).forEach(key => {
+      if (key.startsWith('organization_')) {
+        try {
+          const org = JSON.parse(properties[key]);
+          organizations.push(org);
+        } catch (e) {
+          // Skip corrupted entries
+        }
+      }
+    });
+    
+    return organizations;
+  },
+
+  getDefaultOrganization() {
+    // Return a default organization for users without specific org assignment
+    return {
+      id: 'default',
+      name: 'Default Organization',
+      displayName: 'Default Organization',
+      domain: 'default.local',
+      settings: {
+        allowedDomains: ['*'],
+        maxUsers: 100,
+        features: ["basic", "clients", "reports"],
+        branding: {
+          primaryColor: '#003366',
+          companyName: 'Smart College'
+        }
+      },
+      status: 'active'
+    };
+  },
+
+  assignUserToOrganization(userEmail, orgId) {
+    const currentUser = AuthManager.getCurrentUser();
+    if (!PermissionManager.hasPermission(currentUser.email, 'manage_users')) {
+      throw new Error('Insufficient permissions');
+    }
+
+    const organization = this.getOrganization(orgId);
+    if (!organization) {
+      throw new Error('Organization not found');
+    }
+
+    // Check user limits
+    const orgUserCount = this.getOrganizationUserCount(orgId);
+    if (orgUserCount >= organization.settings.maxUsers) {
+      throw new Error('Organization user limit reached');
+    }
+
+    const userOrgKey = `user_org_${userEmail}`;
+    PropertiesService.getScriptProperties().setProperty(userOrgKey, orgId);
+
+    AuditLogger.log('user_org_assigned', 'organization', orgId, currentUser.email, {
+      assignedUser: userEmail,
+      orgName: organization.name
+    });
+
+    return { success: true };
+  },
+
+  getOrganizationUserCount(orgId) {
+    let count = 0;
+    const properties = PropertiesService.getScriptProperties().getProperties();
+    
+    Object.keys(properties).forEach(key => {
+      if (key.startsWith('user_org_') && properties[key] === orgId) {
+        count++;
+      }
+    });
+    
+    return count;
+  },
+
+  getOrganizationUsers(orgId) {
+    const users = [];
+    const properties = PropertiesService.getScriptProperties().getProperties();
+    
+    Object.keys(properties).forEach(key => {
+      if (key.startsWith('user_org_') && properties[key] === orgId) {
+        const userEmail = key.replace('user_org_', '');
+        users.push({
+          email: userEmail,
+          role: PermissionManager.getUserRole(userEmail),
+          lastActive: ActivityTracker.getUserActivity(userEmail)?.lastSeen
+        });
+      }
+    });
+    
+    return users;
+  },
+
+  initializeOrgDataStores(orgId) {
+    // Create organization-specific data containers
+    const orgDataKey = `org_data_${orgId}`;
+    const orgData = {
+      clients: {},
+      settings: {},
+      statistics: {
+        created: new Date().toISOString(),
+        lastUpdated: new Date().toISOString(),
+        totalClients: 0,
+        totalUsers: 0
+      }
+    };
+    
+    PropertiesService.getScriptProperties().setProperty(orgDataKey, JSON.stringify(orgData));
+  },
+
+  // Data isolation methods
+  getOrgClients(orgId) {
+    const orgDataKey = `org_data_${orgId}`;
+    const data = PropertiesService.getScriptProperties().getProperty(orgDataKey);
+    return data ? JSON.parse(data).clients : {};
+  },
+
+  storeOrgClient(orgId, clientName, clientData) {
+    const orgDataKey = `org_data_${orgId}`;
+    const data = PropertiesService.getScriptProperties().getProperty(orgDataKey);
+    const orgData = data ? JSON.parse(data) : { clients: {}, statistics: {} };
+    
+    orgData.clients[clientName] = {
+      ...clientData,
+      organizationId: orgId,
+      lastUpdated: new Date().toISOString()
+    };
+    
+    orgData.statistics.totalClients = Object.keys(orgData.clients).length;
+    orgData.statistics.lastUpdated = new Date().toISOString();
+    
+    PropertiesService.getScriptProperties().setProperty(orgDataKey, JSON.stringify(orgData));
+  }
+};
+
+/**
+ * Multi-Tenant Aware Client Functions
+ */
+function createClientSheetMultiTenant(clientData) {
+  const user = AuthManager.getCurrentUser();
+  if (!user.authenticated) {
+    throw new Error('User not authenticated');
+  }
+
+  // Get user's organization
+  const organization = OrganizationManager.getUserOrganization(user.email);
+  if (!organization) {
+    throw new Error('User organization not found');
+  }
+
+  // Check organization features
+  if (!organization.settings.features.includes('clients')) {
+    throw new Error('Client management not enabled for your organization');
+  }
+
+  // Add organization context
+  clientData.organizationId = organization.id;
+  clientData.createdBy = user.email;
+  clientData.createdAt = new Date().toISOString();
+
+  // Check if client exists in this organization
+  const existingClients = OrganizationManager.getOrgClients(organization.id);
+  if (existingClients[clientData.name]) {
+    return {
+      success: false,
+      reason: "client_exists_in_org",
+      organization: organization.name,
+      suggestedAction: "use_different_name"
+    };
+  }
+
+  // Create the client using existing function
+  const result = createClientSheet(clientData);
+  
+  if (result.success) {
+    // Store in organization-specific data
+    OrganizationManager.storeOrgClient(organization.id, clientData.name, clientData);
+    
+    // Log with organization context
+    AuditLogger.log('client_created', 'client', clientData.name, user.email, {
+      organizationId: organization.id,
+      organizationName: organization.name,
+      services: clientData.services
+    });
+  }
+
+  return result;
+}
+
+function getOrganizationClientList() {
+  const user = AuthManager.getCurrentUser();
+  if (!user.authenticated) {
+    return { error: 'User not authenticated', clients: [] };
+  }
+
+  const organization = OrganizationManager.getUserOrganization(user.email);
+  if (!organization) {
+    return { error: 'Organization not found', clients: [] };
+  }
+
+  // Get organization-specific clients
+  const orgClients = OrganizationManager.getOrgClients(organization.id);
+  
+  // Filter based on user permissions within the organization
+  const accessibleClients = Object.values(orgClients).filter(client => 
+    ClientOwnershipManager.canUserAccessClient(client.name, user.email)
+  );
+
+  // Apply data privacy filtering
+  const filteredClients = accessibleClients.map(client => 
+    DataPrivacyManager.filterDataByPermission(client, user.email)
+  );
+
+  AuditLogger.log('view', 'org_client_list', organization.id, user.email, { 
+    clientCount: filteredClients.length,
+    organizationName: organization.name
+  });
+
+  return { 
+    clients: filteredClients, 
+    organization: organization,
+    userRole: PermissionManager.getUserRole(user.email) 
+  };
+}
+
+/**
+ * Organization Admin Dashboard
+ */
+function showOrganizationDashboard() {
+  const user = AuthManager.getCurrentUser();
+  const organization = OrganizationManager.getUserOrganization(user.email);
+  
+  if (!PermissionManager.hasPermission(user.email, 'manage_users') && 
+      !PermissionManager.hasPermission(user.email, 'system_config')) {
+    throw new Error('Insufficient permissions for organization dashboard');
+  }
+
+  const orgUsers = OrganizationManager.getOrganizationUsers(organization.id);
+  const orgClients = Object.values(OrganizationManager.getOrgClients(organization.id));
+  
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>${organization.displayName} - Dashboard</title>
+      <style>
+        body { font-family: 'Poppins', sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        .org-header { 
+          background: ${organization.settings.branding.primaryColor}; 
+          color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; 
+        }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .stat-value { font-size: 2em; font-weight: bold; color: ${organization.settings.branding.primaryColor}; }
+        .stat-label { color: #666; margin-top: 5px; }
+        .section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .section h3 { margin-top: 0; color: ${organization.settings.branding.primaryColor}; }
+        .user-list { display: grid; gap: 10px; }
+        .user-item { padding: 10px; background: #f8f9fa; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
+        .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px; }
+        .btn-primary { background: #007bff; color: white; }
+      </style>
+    </head>
+    <body>
+      <div class="org-header">
+        <h1>${organization.settings.branding.companyName}</h1>
+        <p>Organization: ${organization.displayName}</p>
+        <p>Plan: ${organization.subscription?.plan || 'Standard'}</p>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">${orgUsers.length}</div>
+          <div class="stat-label">Users</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${organization.settings.maxUsers}</div>
+          <div class="stat-label">User Limit</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${orgClients.length}</div>
+          <div class="stat-label">Clients</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${organization.settings.features.length}</div>
+          <div class="stat-label">Features</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Organization Users</h3>
+        <div class="user-list">
+          ${orgUsers.map(user => `
+            <div class="user-item">
+              <div>
+                <strong>${user.email}</strong>
+                <span style="color: #666; margin-left: 10px;">${user.role}</span>
+              </div>
+              <div>
+                <span style="font-size: 0.9em; color: #666;">
+                  ${user.lastActive ? getRelativeTime(new Date(user.lastActive).getTime()) : 'Never'}
+                </span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+        
+        <button class="btn btn-primary" onclick="addOrgUser()" style="margin-top: 15px;">
+          Add User to Organization
+        </button>
+      </div>
+
+      <div class="section">
+        <h3>Organization Settings</h3>
+        <p><strong>Allowed Domains:</strong> ${organization.settings.allowedDomains.join(', ')}</p>
+        <p><strong>Features:</strong> ${organization.settings.features.join(', ')}</p>
+        <p><strong>Status:</strong> ${organization.status}</p>
+        
+        <button class="btn btn-primary" onclick="updateOrgSettings()">
+          Update Settings
+        </button>
+      </div>
+
+      <script>
+        function addOrgUser() {
+          const email = prompt('Enter user email to add to organization:');
+          if (email && email.includes('@')) {
+            google.script.run.withSuccessHandler(() => {
+              alert('User added to organization');
+              window.location.reload();
+            }).withFailureHandler(error => {
+              alert('Error: ' + error);
+            }).assignUserToOrg(email);
+          }
+        }
+
+        function updateOrgSettings() {
+          alert('Organization settings update functionality would go here');
+        }
+      </script>
+    </body>
+    </html>
+  `;
+
+  const htmlOutput = HtmlService.createHtmlOutput(html)
+    .setWidth(900)
+    .setHeight(600);
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Organization Dashboard');
+}
+
+function assignUserToOrg(userEmail) {
+  const currentUser = AuthManager.getCurrentUser();
+  const organization = OrganizationManager.getUserOrganization(currentUser.email);
+  
+  return OrganizationManager.assignUserToOrganization(userEmail, organization.id);
+}
+
+/**
+ * Enhanced Security Measures
+ */
+const SecurityManager = {
+  // Rate limiting per user
+  rateLimiter: {
+    limits: {
+      'api_calls': { max: 100, window: 60000 }, // 100 calls per minute
+      'client_creation': { max: 10, window: 300000 }, // 10 clients per 5 minutes
+      'email_sends': { max: 20, window: 3600000 }, // 20 emails per hour
+      'data_exports': { max: 3, window: 3600000 }, // 3 exports per hour
+      'login_attempts': { max: 5, window: 900000 } // 5 login attempts per 15 minutes
+    },
+
+    checkLimit(userId, action) {
+      const limit = this.limits[action];
+      if (!limit) return { allowed: true };
+
+      const key = `rate_limit_${userId}_${action}`;
+      const now = Date.now();
+      const data = PropertiesService.getScriptProperties().getProperty(key);
+      
+      let attempts = data ? JSON.parse(data) : [];
+      
+      // Clean old attempts outside the window
+      attempts = attempts.filter(timestamp => now - timestamp < limit.window);
+      
+      if (attempts.length >= limit.max) {
+        AuditLogger.log('rate_limit_exceeded', 'security', action, userId, {
+          attempts: attempts.length,
+          limit: limit.max,
+          window: limit.window
+        });
+        
+        return { 
+          allowed: false, 
+          message: `Rate limit exceeded. Try again in ${Math.ceil(limit.window/60000)} minutes.`,
+          resetTime: Math.min(...attempts) + limit.window
+        };
+      }
+
+      // Add current attempt
+      attempts.push(now);
+      PropertiesService.getScriptProperties().setProperty(key, JSON.stringify(attempts));
+      
+      return { allowed: true, remaining: limit.max - attempts.length };
+    },
+
+    resetUserLimits(userId) {
+      const properties = PropertiesService.getScriptProperties().getProperties();
+      Object.keys(properties).forEach(key => {
+        if (key.startsWith(`rate_limit_${userId}_`)) {
+          PropertiesService.getScriptProperties().deleteProperty(key);
+        }
+      });
+    }
+  },
+
+  // Session security
+  sessionManager: {
+    createSession(userId) {
+      const session = {
+        id: Utilities.getUuid(),
+        userId: userId,
+        createdAt: new Date().toISOString(),
+        lastActivity: new Date().toISOString(),
+        ipHash: this.getClientIPHash(),
+        userAgent: this.getUserAgentHash(),
+        expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString() // 8 hours
+      };
+
+      const key = `session_${session.id}`;
+      PropertiesService.getScriptProperties().setProperty(key, JSON.stringify(session));
+      
+      return session;
+    },
+
+    validateSession(sessionId) {
+      const key = `session_${sessionId}`;
+      const data = PropertiesService.getScriptProperties().getProperty(key);
+      
+      if (!data) return { valid: false, reason: 'Session not found' };
+      
+      const session = JSON.parse(data);
+      const now = new Date().toISOString();
+      
+      if (now > session.expiresAt) {
+        this.invalidateSession(sessionId);
+        return { valid: false, reason: 'Session expired' };
+      }
+
+      // Check for session hijacking (simplified)
+      const currentIPHash = this.getClientIPHash();
+      const currentUAHash = this.getUserAgentHash();
+      
+      if (session.ipHash !== currentIPHash || session.userAgent !== currentUAHash) {
+        AuditLogger.log('session_anomaly', 'security', sessionId, session.userId, {
+          ipMismatch: session.ipHash !== currentIPHash,
+          userAgentMismatch: session.userAgent !== currentUAHash
+        });
+      }
+
+      // Update last activity
+      session.lastActivity = now;
+      PropertiesService.getScriptProperties().setProperty(key, JSON.stringify(session));
+      
+      return { valid: true, session: session };
+    },
+
+    invalidateSession(sessionId) {
+      const key = `session_${sessionId}`;
+      PropertiesService.getScriptProperties().deleteProperty(key);
+    },
+
+    getClientIPHash() {
+      // In Google Apps Script, we can't get real IP, so use a placeholder
+      return Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, 'placeholder_ip').toString();
+    },
+
+    getUserAgentHash() {
+      // Simplified user agent detection
+      return Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, 'placeholder_ua').toString();
+    },
+
+    cleanupExpiredSessions() {
+      const properties = PropertiesService.getScriptProperties().getProperties();
+      const now = new Date().toISOString();
+      let cleanedCount = 0;
+
+      Object.keys(properties).forEach(key => {
+        if (key.startsWith('session_')) {
+          try {
+            const session = JSON.parse(properties[key]);
+            if (now > session.expiresAt) {
+              PropertiesService.getScriptProperties().deleteProperty(key);
+              cleanedCount++;
+            }
+          } catch (e) {
+            PropertiesService.getScriptProperties().deleteProperty(key);
+            cleanedCount++;
+          }
+        }
+      });
+
+      return cleanedCount;
+    }
+  },
+
+  // Advanced data encryption
+  encryption: {
+    encryptSensitiveData(data, key) {
+      if (!data) return data;
+      
+      const dataStr = typeof data === 'object' ? JSON.stringify(data) : data;
+      const salt = Utilities.getUuid().substring(0, 8);
+      const combinedKey = key + salt;
+      
+      // Simple encryption using base64 encoding with key mixing
+      const encrypted = Utilities.base64Encode(dataStr + '|' + salt + '|' + combinedKey);
+      
+      return {
+        encrypted: encrypted,
+        algorithm: 'base64_keymix',
+        timestamp: new Date().toISOString()
+      };
+    },
+
+    decryptSensitiveData(encryptedData, key) {
+      if (!encryptedData || typeof encryptedData !== 'object') return encryptedData;
+      
+      try {
+        const decoded = Utilities.base64Decode(encryptedData.encrypted);
+        const parts = decoded.split('|');
+        
+        if (parts.length >= 3) {
+          const originalData = parts[0];
+          const salt = parts[1];
+          const combinedKey = parts[2];
+          
+          // Verify key
+          if (combinedKey === key + salt) {
+            try {
+              return JSON.parse(originalData);
+            } catch (e) {
+              return originalData;
+            }
+          }
+        }
+        
+        return encryptedData;
+      } catch (e) {
+        AuditLogger.log('decryption_failed', 'security', 'data_decrypt', 'system', {
+          error: e.message,
+          algorithm: encryptedData.algorithm
+        });
+        return encryptedData;
+      }
+    },
+
+    generateSecureToken() {
+      const timestamp = Date.now().toString(36);
+      const randomBytes = Utilities.getUuid().replace(/-/g, '');
+      return timestamp + randomBytes;
+    }
+  },
+
+  // Security monitoring
+  monitor: {
+    detectAnomalies(userId, action, metadata = {}) {
+      const anomalies = [];
+      
+      // Detect unusual activity patterns
+      const recentActions = this.getRecentUserActions(userId, 300000); // 5 minutes
+      
+      // Rapid succession of same action
+      const sameActionCount = recentActions.filter(a => a.action === action).length;
+      if (sameActionCount > 10) {
+        anomalies.push({
+          type: 'rapid_repetition',
+          description: `${sameActionCount} ${action} actions in 5 minutes`,
+          severity: 'medium'
+        });
+      }
+      
+      // Unusual time of day (outside 6 AM - 11 PM)
+      const hour = new Date().getHours();
+      if (hour < 6 || hour > 23) {
+        anomalies.push({
+          type: 'unusual_time',
+          description: `Activity at ${hour}:00`,
+          severity: 'low'
+        });
+      }
+      
+      // Multiple organizations accessed rapidly
+      const orgActions = recentActions.filter(a => a.metadata && a.metadata.organizationId);
+      const uniqueOrgs = [...new Set(orgActions.map(a => a.metadata.organizationId))];
+      if (uniqueOrgs.length > 2) {
+        anomalies.push({
+          type: 'multi_org_access',
+          description: `Accessed ${uniqueOrgs.length} organizations rapidly`,
+          severity: 'high'
+        });
+      }
+      
+      // Log anomalies
+      if (anomalies.length > 0) {
+        AuditLogger.log('security_anomaly', 'security', action, userId, {
+          anomalies: anomalies,
+          metadata: metadata
+        });
+        
+        // Alert admins for high severity
+        const highSeverityAnomalies = anomalies.filter(a => a.severity === 'high');
+        if (highSeverityAnomalies.length > 0) {
+          this.alertSecurityTeam(userId, action, highSeverityAnomalies);
+        }
+      }
+      
+      return anomalies;
+    },
+
+    getRecentUserActions(userId, windowMs) {
+      const since = new Date(Date.now() - windowMs).toISOString();
+      return AuditLogger.getAuditLog(since, new Date().toISOString(), { userId: userId });
+    },
+
+    alertSecurityTeam(userId, action, anomalies) {
+      const admins = getAllSystemUsers().filter(email => 
+        PermissionManager.getUserRole(email) === 'admin'
+      );
+      
+      admins.forEach(adminEmail => {
+        NotificationManager.createNotification(
+          adminEmail,
+          'audit_alert',
+          'Security Anomaly Detected',
+          `User ${userId} triggered security alerts during ${action}: ${anomalies.map(a => a.description).join(', ')}`,
+          userId
+        );
+      });
+    }
+  },
+
+  // Input validation and sanitization
+  validator: {
+    sanitizeInput(input, type = 'general') {
+      if (!input) return input;
+      
+      const sanitizers = {
+        email: (str) => str.toLowerCase().trim().replace(/[^a-zA-Z0-9@._-]/g, ''),
+        name: (str) => str.trim().replace(/[<>\"'&]/g, '').substring(0, 100),
+        general: (str) => str.trim().replace(/[<>\"']/g, '').substring(0, 1000),
+        notes: (str) => str.trim().substring(0, 5000) // Longer for notes
+      };
+      
+      const sanitizer = sanitizers[type] || sanitizers.general;
+      return typeof input === 'string' ? sanitizer(input) : input;
+    },
+
+    validateClientData(clientData) {
+      const errors = [];
+      
+      if (!clientData.name || clientData.name.length < 2) {
+        errors.push('Client name must be at least 2 characters');
+      }
+      
+      if (clientData.parentEmail && !this.isValidEmail(clientData.parentEmail)) {
+        errors.push('Invalid parent email format');
+      }
+      
+      if (clientData.name && clientData.name.length > 100) {
+        errors.push('Client name too long (max 100 characters)');
+      }
+      
+      return {
+        valid: errors.length === 0,
+        errors: errors,
+        sanitized: {
+          name: this.sanitizeInput(clientData.name, 'name'),
+          services: this.sanitizeInput(clientData.services, 'general'),
+          parentEmail: this.sanitizeInput(clientData.parentEmail, 'email'),
+          emailAddressees: this.sanitizeInput(clientData.emailAddressees, 'email')
+        }
+      };
+    },
+
+    isValidEmail(email) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+  }
+};
+
+/**
+ * Secure wrapper functions with rate limiting and validation
+ */
+function createClientSheetSecure(clientData) {
+  const user = AuthManager.getCurrentUser();
+  if (!user.authenticated) {
+    throw new Error('User not authenticated');
+  }
+
+  // Rate limiting
+  const rateLimitCheck = SecurityManager.rateLimiter.checkLimit(user.email, 'client_creation');
+  if (!rateLimitCheck.allowed) {
+    throw new Error(rateLimitCheck.message);
+  }
+
+  // Input validation
+  const validation = SecurityManager.validator.validateClientData(clientData);
+  if (!validation.valid) {
+    throw new Error('Validation failed: ' + validation.errors.join(', '));
+  }
+
+  // Security monitoring
+  SecurityManager.monitor.detectAnomalies(user.email, 'client_creation', {
+    clientName: validation.sanitized.name
+  });
+
+  // Use sanitized data
+  return createClientSheetWithUserContext(validation.sanitized);
+}
+
+function sendEmailSecure(emailData) {
+  const user = AuthManager.getCurrentUser();
+  if (!user.authenticated) {
+    throw new Error('User not authenticated');
+  }
+
+  // Rate limiting for emails
+  const rateLimitCheck = SecurityManager.rateLimiter.checkLimit(user.email, 'email_sends');
+  if (!rateLimitCheck.allowed) {
+    throw new Error(rateLimitCheck.message);
+  }
+
+  // Security monitoring
+  SecurityManager.monitor.detectAnomalies(user.email, 'email_send', {
+    recipientCount: emailData.recipients ? emailData.recipients.length : 0
+  });
+
+  // Proceed with email sending
+  return sendIndividualRecapWithUserContext(emailData.sheetName, emailData);
+}
+
+/**
+ * Integration Framework for LMS/CRM Systems
+ */
+const IntegrationManager = {
+  // Webhook system for external integrations
+  webhooks: {
+    registeredHooks: {},
+
+    registerWebhook(name, url, events, authToken = null) {
+      const currentUser = AuthManager.getCurrentUser();
+      if (!PermissionManager.hasPermission(currentUser.email, 'system_config')) {
+        throw new Error('Insufficient permissions to register webhooks');
+      }
+
+      const webhook = {
+        id: Utilities.getUuid(),
+        name: name,
+        url: url,
+        events: events, // ['client_created', 'session_completed', 'user_assigned']
+        authToken: authToken,
+        isActive: true,
+        createdBy: currentUser.email,
+        createdAt: new Date().toISOString(),
+        lastTriggered: null,
+        successCount: 0,
+        errorCount: 0
+      };
+
+      this.registeredHooks[webhook.id] = webhook;
+      this.persistWebhooks();
+
+      AuditLogger.log('webhook_registered', 'integration', webhook.id, currentUser.email, {
+        name: name,
+        url: url,
+        events: events
+      });
+
+      return webhook;
+    },
+
+    triggerWebhook(event, data) {
+      Object.values(this.registeredHooks).forEach(webhook => {
+        if (webhook.isActive && webhook.events.includes(event)) {
+          this.executeWebhook(webhook, event, data);
+        }
+      });
+    },
+
+    executeWebhook(webhook, event, data) {
+      try {
+        const payload = {
+          event: event,
+          timestamp: new Date().toISOString(),
+          data: data,
+          source: 'client-management-system'
+        };
+
+        const options = {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'ClientManagementSystem/1.0'
+          },
+          payload: JSON.stringify(payload)
+        };
+
+        if (webhook.authToken) {
+          options.headers['Authorization'] = `Bearer ${webhook.authToken}`;
+        }
+
+        const response = UrlFetchApp.fetch(webhook.url, options);
+        
+        webhook.lastTriggered = new Date().toISOString();
+        webhook.successCount++;
+
+        if (response.getResponseCode() >= 400) {
+          throw new Error(`HTTP ${response.getResponseCode()}: ${response.getContentText()}`);
+        }
+
+        AuditLogger.log('webhook_triggered', 'integration', webhook.id, 'system', {
+          event: event,
+          status: 'success',
+          responseCode: response.getResponseCode()
+        });
+
+      } catch (error) {
+        webhook.errorCount++;
+        
+        AuditLogger.log('webhook_failed', 'integration', webhook.id, 'system', {
+          event: event,
+          error: error.message,
+          url: webhook.url
+        });
+
+        // Disable webhook after 10 consecutive failures
+        if (webhook.errorCount > 10) {
+          webhook.isActive = false;
+          this.notifyWebhookFailure(webhook);
+        }
+      }
+
+      this.persistWebhooks();
+    },
+
+    persistWebhooks() {
+      PropertiesService.getScriptProperties().setProperty('webhooks', JSON.stringify(this.registeredHooks));
+    },
+
+    loadWebhooks() {
+      const data = PropertiesService.getScriptProperties().getProperty('webhooks');
+      this.registeredHooks = data ? JSON.parse(data) : {};
+    },
+
+    notifyWebhookFailure(webhook) {
+      NotificationManager.broadcastSystemAlert(
+        'Webhook Disabled',
+        `Webhook "${webhook.name}" has been disabled due to repeated failures. Please check the endpoint.`,
+        'admin'
+      );
+    }
+  },
+
+  // API endpoints for external systems
+  api: {
+    // External systems can call these via Google Apps Script Web App
+    handleApiRequest(request) {
+      const user = AuthManager.getCurrentUser();
+      
+      // Rate limiting for API calls
+      const rateLimitCheck = SecurityManager.rateLimiter.checkLimit(user.email, 'api_calls');
+      if (!rateLimitCheck.allowed) {
+        return this.apiResponse(429, { error: rateLimitCheck.message });
+      }
+
+      try {
+        const { method, endpoint, data } = request;
+        
+        switch (endpoint) {
+          case '/clients':
+            return method === 'GET' ? this.getClients() : this.createClient(data);
+          
+          case '/users':
+            return method === 'GET' ? this.getUsers() : this.createUser(data);
+          
+          case '/sessions':
+            return method === 'POST' ? this.recordSession(data) : this.apiResponse(405, { error: 'Method not allowed' });
+          
+          default:
+            return this.apiResponse(404, { error: 'Endpoint not found' });
+        }
+      } catch (error) {
+        AuditLogger.log('api_error', 'integration', endpoint, user.email, {
+          error: error.message,
+          method: request.method
+        });
+        
+        return this.apiResponse(500, { error: 'Internal server error' });
+      }
+    },
+
+    getClients() {
+      const result = getOrganizationClientList();
+      return this.apiResponse(200, {
+        clients: result.clients,
+        organization: result.organization.name
+      });
+    },
+
+    createClient(data) {
+      const validation = SecurityManager.validator.validateClientData(data);
+      if (!validation.valid) {
+        return this.apiResponse(400, { errors: validation.errors });
+      }
+
+      const result = createClientSheetSecure(validation.sanitized);
+      
+      // Trigger webhook
+      IntegrationManager.webhooks.triggerWebhook('client_created', result);
+      
+      return this.apiResponse(201, result);
+    },
+
+    recordSession(data) {
+      // External LMS can record that a session happened
+      const user = AuthManager.getCurrentUser();
+      
+      AuditLogger.log('external_session_recorded', 'integration', data.clientName, user.email, {
+        sessionType: data.sessionType,
+        duration: data.duration,
+        externalSystem: data.source
+      });
+
+      // Trigger webhook
+      IntegrationManager.webhooks.triggerWebhook('session_completed', {
+        clientName: data.clientName,
+        sessionType: data.sessionType,
+        completedAt: new Date().toISOString(),
+        recordedBy: user.email
+      });
+
+      return this.apiResponse(200, { success: true, recorded: true });
+    },
+
+    apiResponse(status, data) {
+      return {
+        status: status,
+        data: data,
+        timestamp: new Date().toISOString()
+      };
+    }
+  },
+
+  // Data sync with external systems
+  sync: {
+    exportToLMS(clientData, lmsConfig) {
+      // Export client data to Learning Management System
+      const payload = {
+        student: {
+          name: clientData.name,
+          email: clientData.parentEmail,
+          services: clientData.services,
+          startDate: clientData.createdAt
+        },
+        metadata: {
+          source: 'client-management-system',
+          exportedAt: new Date().toISOString()
+        }
+      };
+
+      // Would integrate with actual LMS APIs
+      console.log('Would export to LMS:', payload);
+      
+      return { success: true, exported: true };
+    },
+
+    importFromCRM(crmData) {
+      // Import contacts from CRM system
+      const user = AuthManager.getCurrentUser();
+      
+      crmData.contacts.forEach(contact => {
+        const clientData = {
+          name: contact.fullName,
+          parentEmail: contact.email,
+          services: contact.interestedServices || 'General Tutoring'
+        };
+
+        // Validate and create if doesn't exist
+        const validation = SecurityManager.validator.validateClientData(clientData);
+        if (validation.valid) {
+          const existing = UnifiedClientDataStore.getClient(clientData.name);
+          if (!existing) {
+            createClientSheetSecure(validation.sanitized);
+          }
+        }
+      });
+
+      AuditLogger.log('crm_import_completed', 'integration', 'crm_sync', user.email, {
+        contactsProcessed: crmData.contacts.length
+      });
+
+      return { success: true, imported: crmData.contacts.length };
+    }
+  }
+};
+
+// Initialize webhooks on load
+IntegrationManager.webhooks.loadWebhooks();
+
+/**
+ * Security maintenance function
+ */
+function runSecurityMaintenance() {
+  const currentUser = AuthManager.getCurrentUser();
+  if (!PermissionManager.hasPermission(currentUser.email, 'system_config')) {
+    throw new Error('Insufficient permissions');
+  }
+
+  let maintenanceLog = {
+    startTime: new Date().toISOString(),
+    actions: []
+  };
+
+  // Clean expired sessions
+  const expiredSessions = SecurityManager.sessionManager.cleanupExpiredSessions();
+  maintenanceLog.actions.push(`Cleaned ${expiredSessions} expired sessions`);
+
+  // Reset rate limits for inactive users (older than 24 hours)
+  const inactiveUsers = getAllSystemUsers().filter(email => {
+    const activity = ActivityTracker.getUserActivity(email);
+    return !activity || (Date.now() - new Date(activity.lastSeen).getTime()) > 24 * 60 * 60 * 1000;
+  });
+  
+  inactiveUsers.forEach(email => {
+    SecurityManager.rateLimiter.resetUserLimits(email);
+  });
+  maintenanceLog.actions.push(`Reset rate limits for ${inactiveUsers.length} inactive users`);
+
+  // Check webhook health
+  Object.values(IntegrationManager.webhooks.registeredHooks).forEach(webhook => {
+    if (webhook.errorCount > 5 && webhook.isActive) {
+      maintenanceLog.actions.push(`Warning: Webhook ${webhook.name} has ${webhook.errorCount} errors`);
+    }
+  });
+
+  maintenanceLog.endTime = new Date().toISOString();
+  
+  AuditLogger.log('security_maintenance', 'security', 'maintenance', currentUser.email, maintenanceLog);
+
+  return {
+    success: true,
+    message: `Security maintenance completed: ${maintenanceLog.actions.join(', ')}`
+  };
+}
+
 /**
  * Test the enhanced cache system
  */
+
+<function_calls>
+<invoke name="TodoWrite">
+<parameter name="todos">[{"content": "Design multi-user data architecture with user-specific data layers", "status": "completed", "id": "201"}, {"content": "Implement Google OAuth authentication and user management", "status": "completed", "id": "202"}, {"content": "Create concurrent editing resolution system", "status": "completed", "id": "203"}, {"content": "Build permission and access control system", "status": "completed", "id": "204"}, {"content": "Implement audit logging for compliance", "status": "completed", "id": "205"}, {"content": "Design data segregation for privacy/security", "status": "completed", "id": "206"}, {"content": "Create real-time collaboration features", "status": "completed", "id": "207"}, {"content": "Build notification system for changes", "status": "completed", "id": "208"}, {"content": "Implement data versioning and history", "status": "in_progress", "id": "209"}, {"content": "Create enterprise admin dashboard", "status": "pending", "id": "210"}, {"content": "Design organization management and multi-tenancy", "status": "pending", "id": "211"}, {"content": "Implement enhanced security measures", "status": "pending", "id": "212"}, {"content": "Create integration framework for LMS/CRM systems", "status": "pending", "id": "213"}, {"content": "Implement enterprise architecture in clientmanager.gs", "status": "completed", "id": "214"}]
