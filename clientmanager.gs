@@ -6595,7 +6595,7 @@ function showQuickNotesSettings() {
             </div>
             <div class="button-input">
               <label>Button 2:</label>
-              <input type="text" id="next2" placeholder="e.g., Build on today's progress" maxlength="30" value="${currentSettings.next?.[1] || 'Build on today\\'s progress'}">
+              <input type="text" id="next2" placeholder="e.g., Build on today's progress" maxlength="30" value="${currentSettings.next?.[1] || 'Build on today\'s progress'}">
             </div>
             <div class="button-input">
               <label>Button 3:</label>
@@ -6660,7 +6660,7 @@ function showQuickNotesSettings() {
                 introduced: ['New concept', 'Advanced technique', 'Study method', ''],
                 struggles: ['Careless errors', 'Time pressure', 'Concept confusion', 'Attention focus'],
                 parent: ['Great participation today', 'Ask about homework completion', 'Encourage practice at home', 'Celebrate improvement'],
-                next: ['Review homework challenges', 'Build on today\\'s progress', 'Practice test strategies', 'Focus on weak areas']
+                next: ['Review homework challenges', 'Build on today\'s progress', 'Practice test strategies', 'Focus on weak areas']
               };
               
               sections.forEach(section => {
