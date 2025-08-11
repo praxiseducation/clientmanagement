@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body {
+        font-family: 'Poppins', 'Google Sans', Arial, sans-serif;
+        margin: 0;
+        padding: 15px;
+        font-size: 14px;
+        background: #f8f9fa;
+      }
+      
+      .user-info {
+        background: linear-gradient(135deg, #003366 0%, #1a73e8 100%);
+        color: white;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        font-size: 13px;
+      }
+      
+      .user-name {
+        font-weight: 600;
+        margin-bottom: 4px;
+        cursor: pointer;
+      }
+      
+      .user-name:hover {
+        text-decoration: underline;
+      }
+      
+      .user-role {
+        opacity: 0.9;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      
+      .current-client {
+        background: white;
+        padding: 12px;
+        border-radius: 6px;
+        margin-bottom: 20px;
+        font-size: 13px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      }
+      
+      .current-client-label {
+        font-weight: 500;
+        color: #5f6368;
+        margin-bottom: 4px;
+      }
+      
+      .current-client-name {
+        color: #202124;
+        font-weight: 600;
+      }
+      
+      .no-client {
+        color: #5f6368;
+        font-style: italic;
+      }
+      
+      .section {
+        margin-bottom: 25px;
+        background: white;
+        border-radius: 8px;
+        padding: 15px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      }
+      
+      .section-title {
+        font-weight: 600;
+        color: #202124;
+        margin-bottom: 12px;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      
+      .section-icon {
+        font-size: 16px;
+      }
+      
+      button {
+        width: 100%;
+        padding: 12px;
+        margin-bottom: 8px;
+        border: 1px solid #dadce0;
+        border-radius: 6px;
+        background: white;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        transition: all 0.3s;
+        text-align: left;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      
+      button:hover:not(:disabled) {
+        background: #f8f9fa;
+        border-color: #1a73e8;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      }
+      
+      button:active {
+        transform: translateY(0);
+        box-shadow: none;
+      }
+      
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      
+      .primary {
+        background: linear-gradient(135deg, #1a73e8 0%, #1557b0 100%);
+        color: white;
+        border: none;
+        text-align: center;
+        justify-content: center;
+      }
+      
+      .primary:hover:not(:disabled) {
+        background: linear-gradient(135deg, #1557b0 0%, #0d47a1 100%);
+      }
+      
+      .admin-only {
+        background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%);
+        color: white;
+        border: none;
+      }
+      
+      .admin-only:hover:not(:disabled) {
+        background: linear-gradient(135deg, #b71c1c 0%, #8e24aa 100%);
+      }
+      
+      .search-bar {
+        width: 100%;
+        padding: 10px;
+        margin-bottom: 12px;
+        border: 1px solid #dadce0;
+        border-radius: 6px;
+        font-size: 14px;
+        box-sizing: border-box;
+      }
+      
+      .search-bar:focus {
+        outline: none;
+        border-color: #1a73e8;
+        box-shadow: 0 0 0 2px rgba(26,115,232,0.1);
+      }
+      
+      .icon {
+        font-size: 16px;
+        width: 20px;
+        text-align: center;
+      }
+      
+      .loading {
+        display: none;
+        text-align: center;
+        padding: 20px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      }
+      
+      .spinner {
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #1a73e8;
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto;
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      
+      .message {
+        font-size: 13px;
+        margin-top: 10px;
+        padding: 12px;
+        border-radius: 6px;
+        display: none;
+        border-left: 4px solid;
+      }
+      
+      .error {
+        color: #d93025;
+        background: #fce8e6;
+        border-left-color: #d93025;
+      }
+      
+      .success {
+        color: #188038;
+        background: #e6f4ea;
+        border-left-color: #188038;
+      }
+      
+      .warning {
+        color: #ea8600;
+        background: #fef7e0;
+        border-left-color: #ea8600;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- User Information -->
+    <div class="user-info" id="userInfo">
+      <div class="user-name" id="userName" ondblclick="editUserName()" title="Double-click to edit">Loading...</div>
+      <div class="user-role" id="userRole"></div>
+    </div>
+    
+    <!-- Current Client -->
+    <div class="current-client" id="currentClient">
+      <div class="current-client-label">Current Client:</div>
+      <div id="clientName" class="no-client">Loading...</div>
+    </div>
+    
+    <!-- Client Management Section -->
+    <div class="section">
+      <div class="section-title">
+        <span class="section-icon">👥</span>
+        Client Management
+      </div>
+      <div style="position: relative;">
+        <input type="text" class="search-bar" id="clientSearchBar" placeholder="Search for a client..." onkeyup="searchClients(this.value)" onfocus="showSearchDropdown()" onblur="hideSearchDropdown()">
+        <div id="searchDropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #dadce0; border-top: none; border-radius: 0 0 6px 6px; max-height: 200px; overflow-y: auto; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></div>
+      </div>
+      <button class="primary" onclick="runSecureFunction('createClientSheetSecure', null, event)">
+        <span class="icon">➕</span>
+        Add New Client
+      </button>
+      <button onclick="runFunction('findClient', event)">
+        <span class="icon">📋</span>
+        View All Clients
+      </button>
+    </div>
+    
+    <!-- Session Management Section -->
+    <div class="section">
+      <div class="section-title">
+        <span class="section-icon">📝</span>
+        Session Management
+      </div>
+      <button id="quickNotesBtn" onclick="runFunction('openQuickNotes')" disabled>
+        <span class="icon">📝</span>
+        Quick Notes
+      </button>
+      <button id="recapBtn" onclick="runSecureFunction('sendEmailSecure')" disabled>
+        <span class="icon">✉️</span>
+        Send Session Recap
+      </button>
+    </div>
+    
+    <!-- External Tools Section -->
+    <div class="section">
+      <div class="section-title">
+        <span class="section-icon">🔗</span>
+        External Tools
+      </div>
+      <button onclick="window.open('https://secure.acuityscheduling.com/admin/clients', '_blank')">
+        <span class="icon">📅</span>
+        Open Acuity
+      </button>
+    </div>
+    
+    <!-- Admin Functions (shown only for admins) -->
+    <div class="section" id="adminSection" style="display: none;">
+      <div class="section-title">
+        <span class="section-icon">⚙️</span>
+        Administration
+      </div>
+      <button class="admin-only" onclick="runFunction('showEnterpriseAdminDashboard')">
+        <span class="icon">🏢</span>
+        Admin Dashboard
+      </button>
+      <button class="admin-only" onclick="runFunction('showOrganizationDashboard')">
+        <span class="icon">🏗️</span>
+        Organization Dashboard
+      </button>
+      <button onclick="runFunction('runSystemMaintenance')">
+        <span class="icon">🔧</span>
+        System Maintenance
+      </button>
+      <button onclick="runFunction('generateComplianceReportDialog')">
+        <span class="icon">📋</span>
+        Compliance Report
+      </button>
+    </div>
+    
+    <!-- Loading State -->
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <p>Processing...</p>
+    </div>
+    
+    <!-- Messages -->
+    <div class="message error" id="error"></div>
+    <div class="message success" id="success"></div>
+    <div class="message warning" id="warning"></div>
+    
+    <!-- Version Info -->
+    <div style="margin-top: 20px; padding: 10px; background: #f8f9fa; border-radius: 6px; font-size: 11px; color: #5f6368; text-align: center; border-top: 1px solid #e1e5e9;">
+      <div id="versionInfo" style="line-height: 1.4;">
+        <div>Enterprise Sidebar v3.0.1 (20250108)</div>
+        <div id="scriptVersion">Loading script version...</div>
+      </div>
+    </div>
+    
+    <script>
+      let currentUser = null;
+      
+      // Function to edit user name
+      function editUserName() {
+        const currentName = document.getElementById('userName').textContent;
+        const newName = prompt('Enter your name:', currentName);
+        if (newName && newName !== currentName) {
+          google.script.run
+            .withSuccessHandler(() => {
+              document.getElementById('userName').textContent = newName;
+              showMessage('success', 'Name updated successfully');
+            })
+            .withFailureHandler((error) => {
+              showMessage('error', 'Failed to update name');
+            })
+            .updateUserDisplayName(newName);
+        }
+      }
+      
+      // Function to search clients with dropdown
+      let searchTimeout;
+      let searchResults = [];
+      
+      function searchClients(searchTerm) {
+        clearTimeout(searchTimeout);
+        const dropdown = document.getElementById('searchDropdown');
+        
+        if (searchTerm.length < 2) {
+          dropdown.style.display = 'none';
+          dropdown.innerHTML = '';
+          return;
+        }
+        
+        // Debounce search
+        searchTimeout = setTimeout(() => {
+          google.script.run
+            .withSuccessHandler((clients) => {
+              searchResults = clients || [];
+              displaySearchResults(searchResults);
+            })
+            .withFailureHandler((error) => {
+              console.error('Search failed:', error);
+              dropdown.style.display = 'none';
+            })
+            .searchClientsByName(searchTerm);
+        }, 300);
+      }
+      
+      function displaySearchResults(clients) {
+        const dropdown = document.getElementById('searchDropdown');
+        
+        if (!clients || clients.length === 0) {
+          dropdown.innerHTML = '<div style="padding: 10px; color: #5f6368;">No clients found</div>';
+          dropdown.style.display = 'block';
+          return;
+        }
+        
+        dropdown.innerHTML = clients.map(client => 
+          `<div style="padding: 10px; cursor: pointer; border-bottom: 1px solid #f1f3f4;" 
+                onmousedown="selectClientFromSearch('${client.name}')" 
+                onmouseover="this.style.background='#f8f9fa'" 
+                onmouseout="this.style.background='white'">
+            <strong>${client.name}</strong>
+            ${client.sheetName !== client.name ? `<small style="color: #5f6368;"> (${client.sheetName})</small>` : ''}
+          </div>`
+        ).join('');
+        
+        dropdown.style.display = 'block';
+      }
+      
+      function selectClientFromSearch(clientName) {
+        document.getElementById('clientSearchBar').value = '';
+        document.getElementById('searchDropdown').style.display = 'none';
+        
+        showLoading();
+        google.script.run
+          .withSuccessHandler(() => {
+            hideLoading();
+            updateCurrentClient();
+            showMessage('success', `Switched to ${clientName}`);
+          })
+          .withFailureHandler((error) => {
+            hideLoading();
+            showMessage('error', 'Failed to switch client');
+          })
+          .switchToClient(clientName);
+      }
+      
+      function showSearchDropdown() {
+        const searchTerm = document.getElementById('clientSearchBar').value;
+        if (searchTerm.length >= 2 && searchResults.length > 0) {
+          displaySearchResults(searchResults);
+        }
+      }
+      
+      function hideSearchDropdown() {
+        // Delay to allow click on dropdown items
+        setTimeout(() => {
+          document.getElementById('searchDropdown').style.display = 'none';
+        }, 200);
+      }
+      
+      
+      // Initialize sidebar on load
+      google.script.run
+        .withSuccessHandler(initializeSidebar)
+        .withFailureHandler(handleAuthError)
+        .initializeEnterpriseMode();
+      
+      function initializeSidebar(initData) {
+        if (!initData.success && initData.fallbackMode) {
+          // Running in basic mode
+          document.getElementById('userName').textContent = 'Guest User';
+          document.getElementById('userRole').textContent = 'Basic Mode';
+        } else if (initData.success) {
+          currentUser = initData.user;
+          
+          // Update user info
+          document.getElementById('userName').textContent = initData.user.displayName || initData.user.email.split('@')[0];
+          document.getElementById('userRole').textContent = initData.role || 'tutor';
+          
+          // Show/hide admin section
+          if (initData.role === 'admin' || initData.role === 'supervisor') {
+            document.getElementById('adminSection').style.display = 'block';
+          }
+        }
+        
+        // Load current client info
+        updateCurrentClient();
+      }
+      
+      function handleAuthError(error) {
+        const errorDiv = document.getElementById('error');
+        errorDiv.textContent = 'Authentication Error: Please refresh the page and try again.';
+        errorDiv.style.display = 'block';
+        
+        // Disable all buttons
+        const buttons = document.querySelectorAll('button');
+        buttons.forEach(btn => btn.disabled = true);
+      }
+      
+      function updateCurrentClient() {
+        google.script.run
+          .withSuccessHandler((clientInfo) => {
+            const clientNameDiv = document.getElementById('clientName');
+            const quickNotesBtn = document.getElementById('quickNotesBtn');
+            const recapBtn = document.getElementById('recapBtn');
+            
+            if (clientInfo && clientInfo.isClient) {
+              clientNameDiv.textContent = clientInfo.name;
+              clientNameDiv.className = 'current-client-name';
+              quickNotesBtn.disabled = false;
+              recapBtn.disabled = false;
+            } else {
+              clientNameDiv.textContent = 'No client selected';
+              clientNameDiv.className = 'no-client';
+              quickNotesBtn.disabled = true;
+              recapBtn.disabled = true;
+            }
+          })
+          .withFailureHandler(() => {
+            document.getElementById('clientName').textContent = 'Error loading client';
+            document.getElementById('clientName').className = 'no-client';
+          })
+          .getCurrentClientInfo();
+      }
+      
+      function runFunction(functionName, event) {
+        showLoading(event);
+        clearMessages();
+        
+        google.script.run
+          .withSuccessHandler((result) => {
+            hideLoading();
+            
+            // Update current client info after certain actions
+            if (['findClient', 'addNewClient'].includes(functionName)) {
+              updateCurrentClient();
+            }
+            
+            // Show success message
+            if (result && result.message) {
+              showMessage('success', result.message);
+            } else {
+              showMessage('success', 'Action completed successfully');
+            }
+          })
+          .withFailureHandler((error) => {
+            hideLoading();
+            showMessage('error', error.message || 'An error occurred');
+            
+            // If rate limited, show warning
+            if (error.message && error.message.includes('Rate limit')) {
+              showMessage('warning', 'Rate limit reached. Please wait before trying again.');
+            }
+          })[functionName]();
+      }
+      
+      function runSecureFunction(functionName, data = null, event) {
+        showLoading(event);
+        clearMessages();
+        
+        const args = data ? [data] : [];
+        
+        google.script.run
+          .withSuccessHandler((result) => {
+            hideLoading();
+            
+            if (result.success) {
+              showMessage('success', 'Action completed successfully');
+              updateCurrentClient();
+            } else {
+              showMessage('warning', result.reason || 'Action completed with warnings');
+            }
+          })
+          .withFailureHandler((error) => {
+            hideLoading();
+            
+            if (error.message && error.message.includes('Rate limit')) {
+              showMessage('warning', 'Rate limit reached. Please wait before trying again.');
+            } else {
+              showMessage('error', error.message || 'An error occurred');
+            }
+          })[functionName](...args);
+      }
+      
+      let loadingButton = null;
+      
+      function showLoading(button) {
+        // If a specific button triggered this, show spinner on that button
+        if (button && button.target) {
+          loadingButton = button.target.closest('button');
+          if (loadingButton) {
+            const originalContent = loadingButton.innerHTML;
+            loadingButton.setAttribute('data-original-content', originalContent);
+            loadingButton.innerHTML = '<div class="spinner" style="border: 2px solid #f3f3f3; border-top: 2px solid #1a73e8; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; margin: 0 auto;"></div>';
+            loadingButton.disabled = true;
+          }
+        } else {
+          // Show general loading overlay
+          document.getElementById('loading').style.display = 'block';
+          const buttons = document.querySelectorAll('button');
+          buttons.forEach(btn => btn.disabled = true);
+        }
+      }
+      
+      function hideLoading() {
+        // Restore button if we have one
+        if (loadingButton) {
+          const originalContent = loadingButton.getAttribute('data-original-content');
+          if (originalContent) {
+            loadingButton.innerHTML = originalContent;
+          }
+          loadingButton.disabled = false;
+          loadingButton = null;
+        }
+        
+        // Hide general loading
+        document.getElementById('loading').style.display = 'none';
+        const buttons = document.querySelectorAll('button');
+        buttons.forEach(btn => btn.disabled = false);
+        
+        // Re-check client-dependent buttons
+        updateCurrentClient();
+      }
+      
+      function showMessage(type, message) {
+        clearMessages();
+        const messageDiv = document.getElementById(type);
+        messageDiv.textContent = message;
+        messageDiv.style.display = 'block';
+        
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+          messageDiv.style.display = 'none';
+        }, 5000);
+      }
+      
+      function clearMessages() {
+        ['error', 'success', 'warning'].forEach(type => {
+          document.getElementById(type).style.display = 'none';
+        });
+      }
+      
+      // Load version info
+      function loadVersionInfo() {
+        google.script.run
+          .withSuccessHandler((versionInfo) => {
+            const scriptVersionDiv = document.getElementById('scriptVersion');
+            scriptVersionDiv.textContent = `Script v${versionInfo.script.version} (${versionInfo.script.build})`;
+          })
+          .withFailureHandler(() => {
+            const scriptVersionDiv = document.getElementById('scriptVersion');
+            scriptVersionDiv.textContent = 'Script version: Unknown';
+          })
+          .getVersionInfo();
+      }
+      
+      // Refresh data every 30 seconds
+      setInterval(() => {
+        if (currentUser) {
+          updateCurrentClient();
+        }
+      }, 30000);
+      
+      // Load version info on startup
+      loadVersionInfo();
+    </script>
+  </body>
+</html>
