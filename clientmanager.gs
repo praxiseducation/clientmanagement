@@ -4,6 +4,8 @@
  */
 
 const CONFIG = {
+  version: '3.0.0-enterprise', // Version tracking
+  build: '2025-01-08', // Build date
   tutorName: '', // Will be set during initial setup
   tutorEmail: '', // Will be set during initial setup
   company: 'Smart College',
@@ -488,6 +490,23 @@ function getUserConfig() {
 }
 
 /**
+ * Get version information
+ */
+function getVersionInfo() {
+  return {
+    script: {
+      version: CONFIG.version,
+      build: CONFIG.build,
+      lastModified: new Date().toISOString().split('T')[0]
+    },
+    sidebar: {
+      version: '3.0.0-enterprise',
+      build: '20250108'
+    }
+  };
+}
+
+/**
  * Refresh UI after setup
  */
 function refreshUI() {
@@ -770,11 +789,28 @@ function getSidebarData() {
 }
 
 /**
- * Universal sidebar that can switch between views without closing
+ * Enhanced Universal Sidebar with Enterprise Features
+ * Version 3.1.0 - Complete enterprise functionality built-in
  */
 function showUniversalSidebar(initialView = 'control') {
-  // Pre-fetch client info to embed in HTML for faster loading
+  // Pre-fetch all required data for performance
   const clientInfo = getCurrentClientInfo();
+  const isEnterprise = CONFIG.version.includes('enterprise');
+  
+  // Get user info for enterprise mode
+  let userInfo = null;
+  let userRole = 'user';
+  if (isEnterprise) {
+    try {
+      const authUser = AuthManager.getCurrentUser();
+      if (authUser.authenticated) {
+        userInfo = authUser;
+        userRole = PermissionManager.getUserRole(authUser.email) || 'tutor';
+      }
+    } catch (e) {
+      console.log('Running in non-enterprise mode');
+    }
+  }
   
   const html = HtmlService.createHtmlOutput(`
     <!DOCTYPE html>
@@ -1842,8 +1878,13 @@ function showUniversalSidebar(initialView = 'control') {
             <h4 id="quickNotesClientTitle" style="margin: 0; color: #003366; font-weight: 600;">Loading...</h4>
           </div>
           
-          <h3>Quick Session Notes</h3>
-          <p style="font-size: 12px; color: #666;">Click tags to add to notes</p>
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <h3 style="margin: 0;">Quick Session Notes</h3>
+            <button class="settings-btn" onclick="openQuickNotesSettings()" title="Settings" style="background: none; border: 1px solid #dadce0; border-radius: 50%; width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #5f6368; font-size: 14px; transition: all 0.2s ease;" onmouseover="this.style.background='#f8f9fa'; this.style.borderColor='#003366';" onmouseout="this.style.background='none'; this.style.borderColor='#dadce0';">
+              ⚙️
+            </button>
+          </div>
+          <p style="font-size: 12px; color: #666; margin-top: 0;">Click tags to add to notes</p>
           
           <div class="save-indicator" id="saveIndicator">Saved!</div>
           <div class="backup-indicator" id="backupIndicator" style="display: none; background: #ff9800; color: white; padding: 8px; border-radius: 4px; margin-bottom: 10px; font-size: 12px; text-align: center;">
@@ -1855,11 +1896,8 @@ function showUniversalSidebar(initialView = 'control') {
           </div>
           
           <div class="note-category wins">
-            <div class="note-tags">
-              <span class="quick-tag wins-tag" onclick="addToField('wins', 'Aha moment!')">Aha moment!</span>
-              <span class="quick-tag wins-tag" onclick="addToField('wins', 'Solved independently')">Solved independently</span>
-              <span class="quick-tag wins-tag" onclick="addToField('wins', 'Confidence boost')">Confidence boost</span>
-              <span class="quick-tag wins-tag" onclick="addToField('wins', 'Speed improved')">Speed improved</span>
+            <div class="note-tags" id="winsQuickTags">
+              <!-- Quick buttons will be loaded dynamically -->
             </div>
             <textarea id="wins" class="note-textarea wins-textarea" placeholder="Quick notes about wins..." onchange="markUnsaved()"></textarea>
           </div>
@@ -1873,10 +1911,8 @@ function showUniversalSidebar(initialView = 'control') {
               <label class="skill-label">
                 <span style="font-style: italic;">Mastered</span>
               </label>
-              <div class="skill-tags">
-                <span class="quick-tag mastered-tag" onclick="addToField('skillsMastered', 'Problem solving')">Problem solving</span>
-                <span class="quick-tag mastered-tag" onclick="addToField('skillsMastered', 'Reading comprehension')">Reading comprehension</span>
-                <span class="quick-tag mastered-tag" onclick="addToField('skillsMastered', 'Time management')">Time management</span>
+              <div class="skill-tags" id="masteredQuickTags">
+                <!-- Quick buttons will be loaded dynamically -->
               </div>
               <textarea id="skillsMastered" class="skill-textarea mastered-textarea" placeholder="Skills the student has fully mastered..." onchange="markUnsaved()"></textarea>
             </div>
@@ -1885,10 +1921,8 @@ function showUniversalSidebar(initialView = 'control') {
               <label class="skill-label">
                 <span style="font-style: italic;">Practiced</span>
               </label>
-              <div class="skill-tags">
-                <span class="quick-tag practiced-tag" onclick="addToField('skillsPracticed', 'Test strategies')">Test strategies</span>
-                <span class="quick-tag practiced-tag" onclick="addToField('skillsPracticed', 'ACT math')">ACT math</span>
-                <span class="quick-tag practiced-tag" onclick="addToField('skillsPracticed', 'Essay writing')">Essay writing</span>
+              <div class="skill-tags" id="practicedQuickTags">
+                <!-- Quick buttons will be loaded dynamically -->
               </div>
               <textarea id="skillsPracticed" class="skill-textarea practiced-textarea" placeholder="Skills we practiced together..." onchange="markUnsaved()"></textarea>
             </div>
@@ -1897,10 +1931,8 @@ function showUniversalSidebar(initialView = 'control') {
               <label class="skill-label">
                 <span style="font-style: italic;">Introduced</span>
               </label>
-              <div class="skill-tags">
-                <span class="quick-tag introduced-tag" onclick="addToField('skillsIntroduced', 'New concept')">New concept</span>
-                <span class="quick-tag introduced-tag" onclick="addToField('skillsIntroduced', 'Advanced technique')">Advanced technique</span>
-                <span class="quick-tag introduced-tag" onclick="addToField('skillsIntroduced', 'Study method')">Study method</span>
+              <div class="skill-tags" id="introducedQuickTags">
+                <!-- Quick buttons will be loaded dynamically -->
               </div>
               <textarea id="skillsIntroduced" class="skill-textarea introduced-textarea" placeholder="New skills introduced today..." onchange="markUnsaved()"></textarea>
             </div>
@@ -1911,11 +1943,8 @@ function showUniversalSidebar(initialView = 'control') {
           </div>
           
           <div class="note-category struggles">
-            <div class="note-tags">
-              <span class="quick-tag struggles-tag" onclick="addToField('struggles', 'Careless errors')">Careless errors</span>
-              <span class="quick-tag struggles-tag" onclick="addToField('struggles', 'Time pressure')">Time pressure</span>
-              <span class="quick-tag struggles-tag" onclick="addToField('struggles', 'Concept confusion')">Concept confusion</span>
-              <span class="quick-tag struggles-tag" onclick="addToField('struggles', 'Attention focus')">Attention focus</span>
+            <div class="note-tags" id="strugglesQuickTags">
+              <!-- Quick buttons will be loaded dynamically -->
             </div>
             <textarea id="struggles" class="note-textarea struggles-textarea" placeholder="Note any challenges..." onchange="markUnsaved()"></textarea>
           </div>
@@ -1925,11 +1954,8 @@ function showUniversalSidebar(initialView = 'control') {
           </div>
           
           <div class="note-category parent">
-            <div class="note-tags">
-              <span class="quick-tag parent-tag" onclick="addToField('parent', 'Great participation today')">Great participation</span>
-              <span class="quick-tag parent-tag" onclick="addToField('parent', 'Ask about homework completion')">Homework check</span>
-              <span class="quick-tag parent-tag" onclick="addToField('parent', 'Encourage practice at home')">Practice reminder</span>
-              <span class="quick-tag parent-tag" onclick="addToField('parent', 'Celebrate improvement')">Celebrate progress</span>
+            <div class="note-tags" id="parentQuickTags">
+              <!-- Quick buttons will be loaded dynamically -->
             </div>
             <textarea id="parent" class="note-textarea parent-textarea" placeholder="Things to mention to parent..." onchange="markUnsaved()"></textarea>
           </div>
@@ -1939,11 +1965,8 @@ function showUniversalSidebar(initialView = 'control') {
           </div>
           
           <div class="note-category next">
-            <div class="note-tags">
-              <span class="quick-tag next-tag" onclick="addToField('next', 'Review homework challenges')">Review homework</span>
-              <span class="quick-tag next-tag" onclick="addToField(&quot;next&quot;, &quot;Build on today's progress&quot;)">Build on progress</span>
-              <span class="quick-tag next-tag" onclick="addToField('next', 'Practice test strategies')">Practice strategies</span>
-              <span class="quick-tag next-tag" onclick="addToField('next', 'Focus on weak areas')">Focus weak areas</span>
+            <div class="note-tags" id="nextQuickTags">
+              <!-- Quick buttons will be loaded dynamically -->
             </div>
             <textarea id="next" class="note-textarea next-textarea" placeholder="Plan for next time..." onchange="markUnsaved()"></textarea>
           </div>
@@ -2407,6 +2430,9 @@ function showUniversalSidebar(initialView = 'control') {
             document.getElementById('controlView').classList.remove('active');
             document.getElementById('quickNotesView').classList.add('active');
             currentView = 'quicknotes';
+            
+            // Load user's custom quick buttons
+            loadQuickNotesButtons();
             
             // Start auto-save if function is available
             if (typeof startAutoSave === 'function') {
@@ -2985,6 +3011,75 @@ function showUniversalSidebar(initialView = 'control') {
             } else {
               console.error('Field not found:', fieldId);
             }
+          }
+          
+          // Open Quick Notes settings dialog
+          function openQuickNotesSettings() {
+            google.script.run
+              .withSuccessHandler(() => {
+                // Settings dialog opened successfully
+                // After settings are changed, reload the quick buttons
+                setTimeout(loadQuickNotesButtons, 500);
+              })
+              .withFailureHandler((error) => {
+                console.error('Failed to open settings:', error);
+                alert('Failed to open Quick Notes settings');
+              })
+              .showQuickNotesSettings();
+          }
+          
+          // Load user's quick button settings and populate the buttons
+          function loadQuickNotesButtons() {
+            google.script.run
+              .withSuccessHandler((settings) => {
+                populateQuickButtons(settings);
+              })
+              .withFailureHandler((error) => {
+                console.error('Failed to load quick button settings:', error);
+                // Fall back to default buttons
+                populateQuickButtons(getDefaultButtonSettings());
+              })
+              .getQuickNotesSettings();
+          }
+          
+          // Populate quick buttons based on user settings
+          function populateQuickButtons(settings) {
+            const sections = [
+              { key: 'wins', containerId: 'winsQuickTags', fieldId: 'wins', cssClass: 'wins-tag' },
+              { key: 'mastered', containerId: 'masteredQuickTags', fieldId: 'skillsMastered', cssClass: 'mastered-tag' },
+              { key: 'practiced', containerId: 'practicedQuickTags', fieldId: 'skillsPracticed', cssClass: 'practiced-tag' },
+              { key: 'introduced', containerId: 'introducedQuickTags', fieldId: 'skillsIntroduced', cssClass: 'introduced-tag' },
+              { key: 'struggles', containerId: 'strugglesQuickTags', fieldId: 'struggles', cssClass: 'struggles-tag' },
+              { key: 'parent', containerId: 'parentQuickTags', fieldId: 'parent', cssClass: 'parent-tag' },
+              { key: 'next', containerId: 'nextQuickTags', fieldId: 'next', cssClass: 'next-tag' }
+            ];
+            
+            sections.forEach(section => {
+              const container = document.getElementById(section.containerId);
+              if (container && settings[section.key]) {
+                const buttons = settings[section.key]
+                  .filter(text => text && text.trim()) // Only show non-empty buttons
+                  .map(text => 
+                    '<span class="quick-tag ' + section.cssClass + '" onclick="addToField(\\'' + section.fieldId + '\\', \\'' + text.replace(/'/g, "\\\\'") + '\\')">' + 
+                    text + '</span>'
+                  );
+                
+                container.innerHTML = buttons.join('');
+              }
+            });
+          }
+          
+          // Default button settings (fallback)
+          function getDefaultButtonSettings() {
+            return {
+              wins: ['Aha moment!', 'Solved independently', 'Confidence boost', 'Speed improved'],
+              mastered: ['Problem solving', 'Reading comprehension', 'Time management'],
+              practiced: ['Test strategies', 'ACT math', 'Essay writing'],
+              introduced: ['New concept', 'Advanced technique', 'Study method'],
+              struggles: ['Careless errors', 'Time pressure', 'Concept confusion', 'Attention focus'],
+              parent: ['Great participation today', 'Ask about homework completion', 'Encourage practice at home', 'Celebrate improvement'],
+              next: ['Review homework challenges', 'Build on today\'s progress', 'Practice test strategies', 'Focus on weak areas']
+            };
           }
           
           // Populate client update form
@@ -4108,6 +4203,9 @@ function showUniversalSidebar(initialView = 'control') {
                   document.getElementById('controlView').classList.remove('active');
                   document.getElementById('quickNotesView').classList.add('active');
                   currentView = 'quicknotes';
+                  
+                  // Load user's custom quick buttons
+                  loadQuickNotesButtons();
                   
                   // Start auto-save
                   startAutoSave();
@@ -6113,6 +6211,537 @@ function showClientInputDialog() {
   SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Smart College');
 }
 
+/**
+ * Show Quick Notes Settings Dialog for customizing quick buttons
+ */
+function showQuickNotesSettings() {
+  // Get current user's quick button preferences
+  const userProperties = PropertiesService.getUserProperties();
+  const currentSettings = JSON.parse(userProperties.getProperty('quickNotesButtons') || '{}');
+  
+  const html = HtmlService.createHtmlOutput(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+        <style>
+          body {
+            font-family: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            margin: 0;
+            padding: 20px;
+            font-size: 14px;
+            background: #f8f9fa;
+          }
+          
+          .header {
+            text-align: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #e1e5e9;
+          }
+          
+          .header h2 {
+            margin: 0;
+            color: #003366;
+            font-size: 20px;
+            font-weight: 600;
+          }
+          
+          .header p {
+            margin: 8px 0 0 0;
+            color: #5f6368;
+            font-size: 13px;
+          }
+          
+          .section {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+          }
+          
+          .section h3 {
+            margin: 0 0 12px 0;
+            color: #202124;
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+          
+          .section-description {
+            font-size: 12px;
+            color: #5f6368;
+            margin-bottom: 16px;
+          }
+          
+          .button-inputs {
+            display: grid;
+            gap: 12px;
+          }
+          
+          .button-input {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+          }
+          
+          .button-input label {
+            min-width: 60px;
+            font-size: 12px;
+            color: #5f6368;
+            font-weight: 500;
+          }
+          
+          .button-input input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: inherit;
+          }
+          
+          .button-input input:focus {
+            outline: none;
+            border-color: #1a73e8;
+            box-shadow: 0 0 0 2px rgba(26,115,232,0.1);
+          }
+          
+          .button-input input::placeholder {
+            color: #9aa0a6;
+          }
+          
+          .preview {
+            margin-top: 12px;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border-left: 3px solid #1a73e8;
+          }
+          
+          .preview-label {
+            font-size: 11px;
+            color: #5f6368;
+            margin-bottom: 8px;
+            font-weight: 500;
+          }
+          
+          .preview-buttons {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+          }
+          
+          .preview-tag {
+            padding: 4px 8px;
+            background: #e8f0fe;
+            border-radius: 12px;
+            font-size: 11px;
+            color: #1a73e8;
+            border: 1px solid #dadce0;
+            cursor: default;
+            white-space: nowrap;
+          }
+          
+          .empty-preview {
+            color: #9aa0a6;
+            font-style: italic;
+            font-size: 11px;
+          }
+          
+          .actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            padding: 16px;
+            background: white;
+            border-top: 1px solid #e1e5e9;
+            margin: 0 -20px -20px -20px;
+            border-radius: 0 0 8px 8px;
+          }
+          
+          .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+          }
+          
+          .btn-secondary {
+            background: #f8f9fa;
+            color: #5f6368;
+            border: 1px solid #dadce0;
+          }
+          
+          .btn-secondary:hover {
+            background: #e8f0fe;
+            border-color: #1a73e8;
+          }
+          
+          .btn-primary {
+            background: linear-gradient(135deg, #1a73e8 0%, #1557b0 100%);
+            color: white;
+          }
+          
+          .btn-primary:hover {
+            background: linear-gradient(135deg, #1557b0 0%, #0d47a1 100%);
+          }
+          
+          .reset-link {
+            font-size: 12px;
+            color: #1a73e8;
+            text-decoration: none;
+            margin-left: auto;
+            margin-right: 16px;
+            cursor: pointer;
+          }
+          
+          .reset-link:hover {
+            text-decoration: underline;
+          }
+          
+          /* Specific section colors */
+          .wins-section { border-left: 3px solid #28a745; }
+          .mastered-section { border-left: 3px solid #17a2b8; }
+          .practiced-section { border-left: 3px solid #ffc107; }
+          .introduced-section { border-left: 3px solid #6f42c1; }
+          .struggles-section { border-left: 3px solid #dc3545; }
+          .parent-section { border-left: 3px solid #fd7e14; }
+          .next-section { border-left: 3px solid #20c997; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h2>Quick Notes Settings</h2>
+          <p>Customize your quick-insert buttons for each section (up to 4 buttons per section)</p>
+        </div>
+        
+        <div class="section wins-section">
+          <h3>🏆 Wins/Breakthroughs</h3>
+          <div class="section-description">Quick buttons for celebrating student achievements</div>
+          <div class="button-inputs">
+            <div class="button-input">
+              <label>Button 1:</label>
+              <input type="text" id="wins1" placeholder="e.g., Aha moment!" maxlength="30" value="${currentSettings.wins?.[0] || 'Aha moment!'}">
+            </div>
+            <div class="button-input">
+              <label>Button 2:</label>
+              <input type="text" id="wins2" placeholder="e.g., Solved independently" maxlength="30" value="${currentSettings.wins?.[1] || 'Solved independently'}">
+            </div>
+            <div class="button-input">
+              <label>Button 3:</label>
+              <input type="text" id="wins3" placeholder="e.g., Confidence boost" maxlength="30" value="${currentSettings.wins?.[2] || 'Confidence boost'}">
+            </div>
+            <div class="button-input">
+              <label>Button 4:</label>
+              <input type="text" id="wins4" placeholder="e.g., Speed improved" maxlength="30" value="${currentSettings.wins?.[3] || 'Speed improved'}">
+            </div>
+          </div>
+          <div class="preview">
+            <div class="preview-label">Preview:</div>
+            <div class="preview-buttons" id="winsPreview"></div>
+          </div>
+        </div>
+        
+        <div class="section mastered-section">
+          <h3>✅ Skills Mastered</h3>
+          <div class="section-description">Skills the student has fully mastered</div>
+          <div class="button-inputs">
+            <div class="button-input">
+              <label>Button 1:</label>
+              <input type="text" id="mastered1" placeholder="e.g., Problem solving" maxlength="30" value="${currentSettings.mastered?.[0] || 'Problem solving'}">
+            </div>
+            <div class="button-input">
+              <label>Button 2:</label>
+              <input type="text" id="mastered2" placeholder="e.g., Reading comprehension" maxlength="30" value="${currentSettings.mastered?.[1] || 'Reading comprehension'}">
+            </div>
+            <div class="button-input">
+              <label>Button 3:</label>
+              <input type="text" id="mastered3" placeholder="e.g., Time management" maxlength="30" value="${currentSettings.mastered?.[2] || 'Time management'}">
+            </div>
+            <div class="button-input">
+              <label>Button 4:</label>
+              <input type="text" id="mastered4" placeholder="e.g., Advanced concept" maxlength="30" value="${currentSettings.mastered?.[3] || ''}">
+            </div>
+          </div>
+          <div class="preview">
+            <div class="preview-label">Preview:</div>
+            <div class="preview-buttons" id="masteredPreview"></div>
+          </div>
+        </div>
+        
+        <div class="section practiced-section">
+          <h3>📝 Skills Practiced</h3>
+          <div class="section-description">Skills we worked on together during the session</div>
+          <div class="button-inputs">
+            <div class="button-input">
+              <label>Button 1:</label>
+              <input type="text" id="practiced1" placeholder="e.g., Test strategies" maxlength="30" value="${currentSettings.practiced?.[0] || 'Test strategies'}">
+            </div>
+            <div class="button-input">
+              <label>Button 2:</label>
+              <input type="text" id="practiced2" placeholder="e.g., ACT math" maxlength="30" value="${currentSettings.practiced?.[1] || 'ACT math'}">
+            </div>
+            <div class="button-input">
+              <label>Button 3:</label>
+              <input type="text" id="practiced3" placeholder="e.g., Essay writing" maxlength="30" value="${currentSettings.practiced?.[2] || 'Essay writing'}">
+            </div>
+            <div class="button-input">
+              <label>Button 4:</label>
+              <input type="text" id="practiced4" placeholder="e.g., Research skills" maxlength="30" value="${currentSettings.practiced?.[3] || ''}">
+            </div>
+          </div>
+          <div class="preview">
+            <div class="preview-label">Preview:</div>
+            <div class="preview-buttons" id="practicedPreview"></div>
+          </div>
+        </div>
+        
+        <div class="section introduced-section">
+          <h3>🆕 Skills Introduced</h3>
+          <div class="section-description">New concepts or skills introduced today</div>
+          <div class="button-inputs">
+            <div class="button-input">
+              <label>Button 1:</label>
+              <input type="text" id="introduced1" placeholder="e.g., New concept" maxlength="30" value="${currentSettings.introduced?.[0] || 'New concept'}">
+            </div>
+            <div class="button-input">
+              <label>Button 2:</label>
+              <input type="text" id="introduced2" placeholder="e.g., Advanced technique" maxlength="30" value="${currentSettings.introduced?.[1] || 'Advanced technique'}">
+            </div>
+            <div class="button-input">
+              <label>Button 3:</label>
+              <input type="text" id="introduced3" placeholder="e.g., Study method" maxlength="30" value="${currentSettings.introduced?.[2] || 'Study method'}">
+            </div>
+            <div class="button-input">
+              <label>Button 4:</label>
+              <input type="text" id="introduced4" placeholder="e.g., Learning strategy" maxlength="30" value="${currentSettings.introduced?.[3] || ''}">
+            </div>
+          </div>
+          <div class="preview">
+            <div class="preview-label">Preview:</div>
+            <div class="preview-buttons" id="introducedPreview"></div>
+          </div>
+        </div>
+        
+        <div class="section struggles-section">
+          <h3>⚠️ Struggles/Challenges</h3>
+          <div class="section-description">Areas where the student had difficulty</div>
+          <div class="button-inputs">
+            <div class="button-input">
+              <label>Button 1:</label>
+              <input type="text" id="struggles1" placeholder="e.g., Careless errors" maxlength="30" value="${currentSettings.struggles?.[0] || 'Careless errors'}">
+            </div>
+            <div class="button-input">
+              <label>Button 2:</label>
+              <input type="text" id="struggles2" placeholder="e.g., Time pressure" maxlength="30" value="${currentSettings.struggles?.[1] || 'Time pressure'}">
+            </div>
+            <div class="button-input">
+              <label>Button 3:</label>
+              <input type="text" id="struggles3" placeholder="e.g., Concept confusion" maxlength="30" value="${currentSettings.struggles?.[2] || 'Concept confusion'}">
+            </div>
+            <div class="button-input">
+              <label>Button 4:</label>
+              <input type="text" id="struggles4" placeholder="e.g., Attention focus" maxlength="30" value="${currentSettings.struggles?.[3] || 'Attention focus'}">
+            </div>
+          </div>
+          <div class="preview">
+            <div class="preview-label">Preview:</div>
+            <div class="preview-buttons" id="strugglesPreview"></div>
+          </div>
+        </div>
+        
+        <div class="section parent-section">
+          <h3>👨‍👩‍👧‍👦 Parent Notes</h3>
+          <div class="section-description">Information to share with parents</div>
+          <div class="button-inputs">
+            <div class="button-input">
+              <label>Button 1:</label>
+              <input type="text" id="parent1" placeholder="e.g., Great participation today" maxlength="30" value="${currentSettings.parent?.[0] || 'Great participation today'}">
+            </div>
+            <div class="button-input">
+              <label>Button 2:</label>
+              <input type="text" id="parent2" placeholder="e.g., Ask about homework completion" maxlength="30" value="${currentSettings.parent?.[1] || 'Ask about homework completion'}">
+            </div>
+            <div class="button-input">
+              <label>Button 3:</label>
+              <input type="text" id="parent3" placeholder="e.g., Encourage practice at home" maxlength="30" value="${currentSettings.parent?.[2] || 'Encourage practice at home'}">
+            </div>
+            <div class="button-input">
+              <label>Button 4:</label>
+              <input type="text" id="parent4" placeholder="e.g., Celebrate improvement" maxlength="30" value="${currentSettings.parent?.[3] || 'Celebrate improvement'}">
+            </div>
+          </div>
+          <div class="preview">
+            <div class="preview-label">Preview:</div>
+            <div class="preview-buttons" id="parentPreview"></div>
+          </div>
+        </div>
+        
+        <div class="section next-section">
+          <h3>➡️ Next Steps</h3>
+          <div class="section-description">Plans for the next session</div>
+          <div class="button-inputs">
+            <div class="button-input">
+              <label>Button 1:</label>
+              <input type="text" id="next1" placeholder="e.g., Review homework challenges" maxlength="30" value="${currentSettings.next?.[0] || 'Review homework challenges'}">
+            </div>
+            <div class="button-input">
+              <label>Button 2:</label>
+              <input type="text" id="next2" placeholder="e.g., Build on today's progress" maxlength="30" value="${currentSettings.next?.[1] || 'Build on today\\'s progress'}">
+            </div>
+            <div class="button-input">
+              <label>Button 3:</label>
+              <input type="text" id="next3" placeholder="e.g., Practice test strategies" maxlength="30" value="${currentSettings.next?.[2] || 'Practice test strategies'}">
+            </div>
+            <div class="button-input">
+              <label>Button 4:</label>
+              <input type="text" id="next4" placeholder="e.g., Focus on weak areas" maxlength="30" value="${currentSettings.next?.[3] || 'Focus on weak areas'}">
+            </div>
+          </div>
+          <div class="preview">
+            <div class="preview-label">Preview:</div>
+            <div class="preview-buttons" id="nextPreview"></div>
+          </div>
+        </div>
+        
+        <div class="actions">
+          <a href="#" class="reset-link" onclick="resetToDefaults()">Reset to Defaults</a>
+          <button class="btn btn-secondary" onclick="google.script.host.close()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+        </div>
+        
+        <script>
+          // Update previews on input change
+          const sections = ['wins', 'mastered', 'practiced', 'introduced', 'struggles', 'parent', 'next'];
+          
+          sections.forEach(section => {
+            for (let i = 1; i <= 4; i++) {
+              const input = document.getElementById(section + i);
+              if (input) {
+                input.addEventListener('input', () => updatePreview(section));
+              }
+            }
+            updatePreview(section);
+          });
+          
+          function updatePreview(section) {
+            const preview = document.getElementById(section + 'Preview');
+            const buttons = [];
+            
+            for (let i = 1; i <= 4; i++) {
+              const input = document.getElementById(section + i);
+              if (input && input.value.trim()) {
+                buttons.push('<span class="preview-tag">' + input.value.trim() + '</span>');
+              }
+            }
+            
+            if (buttons.length > 0) {
+              preview.innerHTML = buttons.join('');
+            } else {
+              preview.innerHTML = '<span class="empty-preview">No buttons configured</span>';
+            }
+          }
+          
+          function resetToDefaults() {
+            if (confirm('Reset all quick buttons to their default values?')) {
+              // Reset to default values
+              const defaults = {
+                wins: ['Aha moment!', 'Solved independently', 'Confidence boost', 'Speed improved'],
+                mastered: ['Problem solving', 'Reading comprehension', 'Time management', ''],
+                practiced: ['Test strategies', 'ACT math', 'Essay writing', ''],
+                introduced: ['New concept', 'Advanced technique', 'Study method', ''],
+                struggles: ['Careless errors', 'Time pressure', 'Concept confusion', 'Attention focus'],
+                parent: ['Great participation today', 'Ask about homework completion', 'Encourage practice at home', 'Celebrate improvement'],
+                next: ['Review homework challenges', 'Build on today\\'s progress', 'Practice test strategies', 'Focus on weak areas']
+              };
+              
+              sections.forEach(section => {
+                for (let i = 1; i <= 4; i++) {
+                  const input = document.getElementById(section + i);
+                  if (input) {
+                    input.value = defaults[section][i-1] || '';
+                  }
+                }
+                updatePreview(section);
+              });
+            }
+          }
+          
+          function saveSettings() {
+            const settings = {};
+            
+            sections.forEach(section => {
+              settings[section] = [];
+              for (let i = 1; i <= 4; i++) {
+                const input = document.getElementById(section + i);
+                if (input) {
+                  settings[section].push(input.value.trim());
+                }
+              }
+            });
+            
+            google.script.run
+              .withSuccessHandler(() => {
+                alert('Quick Notes settings saved successfully!');
+                google.script.host.close();
+              })
+              .withFailureHandler((error) => {
+                alert('Error saving settings: ' + error.message);
+              })
+              .saveQuickNotesSettings(settings);
+          }
+        </script>
+      </body>
+    </html>
+  `).setWidth(600).setHeight(700);
+  
+  SpreadsheetApp.getUi().showModalDialog(html, 'Quick Notes Settings');
+}
+
+/**
+ * Save user's Quick Notes button settings
+ */
+function saveQuickNotesSettings(settings) {
+  const userProperties = PropertiesService.getUserProperties();
+  userProperties.setProperty('quickNotesButtons', JSON.stringify(settings));
+  return { success: true };
+}
+
+/**
+ * Get user's Quick Notes button settings
+ */
+function getQuickNotesSettings() {
+  const userProperties = PropertiesService.getUserProperties();
+  const settings = JSON.parse(userProperties.getProperty('quickNotesButtons') || '{}');
+  
+  // Return defaults if no settings exist
+  const defaults = {
+    wins: ['Aha moment!', 'Solved independently', 'Confidence boost', 'Speed improved'],
+    mastered: ['Problem solving', 'Reading comprehension', 'Time management', ''],
+    practiced: ['Test strategies', 'ACT math', 'Essay writing', ''],
+    introduced: ['New concept', 'Advanced technique', 'Study method', ''],
+    struggles: ['Careless errors', 'Time pressure', 'Concept confusion', 'Attention focus'],
+    parent: ['Great participation today', 'Ask about homework completion', 'Encourage practice at home', 'Celebrate improvement'],
+    next: ['Review homework challenges', 'Build on today\'s progress', 'Practice test strategies', 'Focus on weak areas']
+  };
+  
+  // Merge user settings with defaults
+  const merged = {};
+  Object.keys(defaults).forEach(section => {
+    merged[section] = settings[section] || defaults[section];
+  });
+  
+  return merged;
+}
+
 function createClientSheet(clientData) {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   
@@ -6484,7 +7113,156 @@ function extractSheetNameFromFormula(formula, clientName, spreadsheet) {
  * Open client list by opening the sidebar Client List view
  */
 function findClient() {
-  showUniversalSidebar('clientlist');
+  // For enterprise sidebar, show client selection dialog instead of switching sidebars
+  const isEnterprise = CONFIG.version.includes('enterprise');
+  if (isEnterprise) {
+    showClientSelectionDialogEnterprise();
+  } else {
+    showUniversalSidebar('clientlist');
+  }
+}
+
+/**
+ * Show client selection dialog for enterprise version
+ */
+function showClientSelectionDialogEnterprise() {
+  try {
+    const clients = UnifiedClientDataStore.getActiveClients();
+    
+    if (clients.length === 0) {
+      SpreadsheetApp.getUi().alert(
+        'No Clients Found',
+        'No active clients found in the system.',
+        SpreadsheetApp.getUi().ButtonSet.OK
+      );
+      return;
+    }
+    
+    // Sort clients alphabetically
+    clients.sort((a, b) => a.name.localeCompare(b.name));
+    
+    const html = HtmlService.createHtmlOutput(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body {
+              font-family: 'Google Sans', Arial, sans-serif;
+              margin: 0;
+              padding: 20px;
+            }
+            .search-box {
+              width: 100%;
+              padding: 10px;
+              margin-bottom: 15px;
+              border: 1px solid #dadce0;
+              border-radius: 4px;
+              font-size: 14px;
+              box-sizing: border-box;
+            }
+            .client-list {
+              max-height: 400px;
+              overflow-y: auto;
+              border: 1px solid #dadce0;
+              border-radius: 4px;
+            }
+            .client-item {
+              padding: 12px;
+              cursor: pointer;
+              border-bottom: 1px solid #f1f3f4;
+              transition: background 0.2s;
+            }
+            .client-item:hover {
+              background: #f8f9fa;
+            }
+            .client-item:last-child {
+              border-bottom: none;
+            }
+            .client-name {
+              font-weight: 500;
+              color: #202124;
+            }
+            .client-email {
+              font-size: 12px;
+              color: #5f6368;
+              margin-top: 2px;
+            }
+            .no-results {
+              padding: 20px;
+              text-align: center;
+              color: #5f6368;
+            }
+          </style>
+        </head>
+        <body>
+          <input type="text" class="search-box" id="searchBox" placeholder="Search clients..." onkeyup="filterClients()">
+          <div class="client-list" id="clientList">
+            ${clients.map(client => `
+              <div class="client-item" onclick="selectClient('${client.name}')">
+                <div class="client-name">${client.name}</div>
+                ${client.email ? `<div class="client-email">${client.email}</div>` : ''}
+              </div>
+            `).join('')}
+          </div>
+          
+          <script>
+            function filterClients() {
+              const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+              const items = document.querySelectorAll('.client-item');
+              let hasResults = false;
+              
+              items.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                if (text.includes(searchTerm)) {
+                  item.style.display = 'block';
+                  hasResults = true;
+                } else {
+                  item.style.display = 'none';
+                }
+              });
+              
+              // Show no results message if needed
+              const clientList = document.getElementById('clientList');
+              if (!hasResults) {
+                if (!document.getElementById('noResults')) {
+                  const noResults = document.createElement('div');
+                  noResults.id = 'noResults';
+                  noResults.className = 'no-results';
+                  noResults.textContent = 'No clients found';
+                  clientList.appendChild(noResults);
+                }
+              } else {
+                const noResults = document.getElementById('noResults');
+                if (noResults) noResults.remove();
+              }
+            }
+            
+            function selectClient(clientName) {
+              google.script.run
+                .withSuccessHandler(() => {
+                  google.script.host.close();
+                })
+                .withFailureHandler((error) => {
+                  alert('Error: ' + error.message);
+                })
+                .switchToClient(clientName);
+            }
+            
+            // Focus search box on load
+            document.getElementById('searchBox').focus();
+          </script>
+        </body>
+      </html>
+    `)
+    .setWidth(400)
+    .setHeight(500);
+    
+    SpreadsheetApp.getUi().showModalDialog(html, 'Select Client');
+    
+  } catch (error) {
+    console.error('Error showing client selection dialog:', error);
+    SpreadsheetApp.getUi().alert('Error', 'Failed to load client list: ' + error.toString(), SpreadsheetApp.getUi().ButtonSet.OK);
+  }
 }
 
 /**
@@ -6782,6 +7560,8 @@ function navigateToClient(sheetName) {
  * Updated showSidebar to use universal sidebar
  */
 function showSidebar() {
+  // Use the enhanced universal sidebar for all versions
+  // It handles both enterprise and basic modes internally
   showUniversalSidebar('control');
 }
 
@@ -10959,10 +11739,12 @@ function debugDashboardCell() {
     if (richText) {
       const runs = richText.getRuns();
       runs.forEach((run, index) => {
+        const runInfo = {
           text: run.getText(),
           url: run.getLinkUrl(),
           textStyle: run.getTextStyle()
-        });
+        };
+        console.log(`Run ${index}:`, runInfo);
       });
     }
   } catch (e) {
@@ -11161,7 +11943,7 @@ function refreshClientCache() {
     
     // Log valid clients after filtering
     
-    const activeCount = validClients.filter(client => client.isActive).length;
+    const validActiveCount = validClients.filter(client => client.isActive).length;
     
     // Force refresh of UnifiedClientDataStore
     const refreshedClients = UnifiedClientDataStore.getAllClients();
@@ -11271,13 +12053,43 @@ function getAllClientList() {
  * Get list of active clients only - now uses persistent cache
  */
 function getActiveClientList() {
-  // Deprecated: Use getUnifiedActiveClientList() instead
-  console.warn('getActiveClientList() is deprecated. Use getUnifiedActiveClientList() instead.');
   try {
-    return UnifiedClientDataStore.getActiveClients();
+    const activeClients = UnifiedClientDataStore.getActiveClients();
+    
+    // Format for sidebar display
+    const html = `
+      <div style="max-height: 400px; overflow-y: auto;">
+        ${activeClients.map(client => `
+          <div style="padding: 10px; margin: 5px; background: #f8f9fa; border-radius: 5px; cursor: pointer;"
+               onclick="google.script.run.withSuccessHandler(() => {
+                 google.script.host.close();
+                 google.script.run.switchToClient('${client.name}');
+               }).switchToClient('${client.name}')">
+            <strong>${client.name}</strong>
+            ${client.email ? `<br><small>${client.email}</small>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    `;
+    
+    const htmlOutput = HtmlService.createHtmlOutput(html)
+      .setWidth(400)
+      .setHeight(Math.min(activeClients.length * 70 + 50, 500));
+    
+    SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Active Clients');
+    
+    return { 
+      success: true, 
+      clients: activeClients,
+      count: activeClients.length
+    };
   } catch (error) {
     console.error('Error getting active client list:', error);
-    return [];
+    return { 
+      success: false, 
+      clients: [],
+      error: error.toString()
+    };
   }
 }
 
@@ -14321,13 +15133,34 @@ const AuthManager = {
   getCurrentUser() {
     try {
       const user = Session.getActiveUser();
+      const email = user.getEmail();
+      
+      // Check if email is actually available (not empty)
+      if (!email || email === '') {
+        // Fallback to effective user if active user is not available
+        const effectiveUser = Session.getEffectiveUser();
+        const effectiveEmail = effectiveUser.getEmail();
+        
+        if (effectiveEmail && effectiveEmail !== '') {
+          return {
+            email: effectiveEmail,
+            displayName: effectiveEmail.split('@')[0],
+            authenticated: true
+          };
+        }
+        
+        // If still no email, return not authenticated
+        return { authenticated: false, error: 'User email not available - please authorize the script' };
+      }
+      
       return {
-        email: user.getEmail(),
-        displayName: user.getName() || user.getEmail().split('@')[0],
+        email: email,
+        displayName: email.split('@')[0],
         authenticated: true
       };
     } catch (error) {
-      return { authenticated: false, error: 'Not authenticated' };
+      console.error('Authentication error:', error);
+      return { authenticated: false, error: error.toString() };
     }
   },
 
@@ -14915,38 +15748,67 @@ function setUserRole(userEmail, role) {
  * Initialize Enterprise Mode
  */
 function initializeEnterpriseMode() {
-  const user = AuthManager.getCurrentUser();
-  if (!user.authenticated) {
-    throw new Error('User authentication required for enterprise mode');
+  try {
+    const user = AuthManager.getCurrentUser();
+    
+    // If not authenticated, return basic mode
+    if (!user.authenticated) {
+      console.warn('Enterprise authentication not available, falling back to basic mode');
+      return {
+        success: false,
+        fallbackMode: true,
+        message: 'Running in basic mode - enterprise features disabled',
+        user: {
+          email: 'guest@smartcollege.com',
+          displayName: 'Guest User',
+          authenticated: false
+        },
+        role: 'tutor'
+      };
+    }
+    
+    // Initialize user if first time
+    AuthManager.initializeUser(user.email);
+    
+    // Set default role if not set
+    const currentRole = PermissionManager.getUserRole(user.email);
+    if (!currentRole || currentRole === 'tutor') {
+      // First user gets admin, others get tutor by default
+      const existingUsers = getAllSystemUsers();
+      const role = existingUsers.length === 0 ? 'admin' : 'tutor';
+      PermissionManager.assignRole(user.email, role);
+    }
+    
+    // Update activity
+    ActivityTracker.updateUserActivity();
+    
+    // Log initialization
+    AuditLogger.log('system_init', 'system', 'enterprise_mode', user.email, {
+      role: PermissionManager.getUserRole(user.email),
+      existingUsers: getAllSystemUsers().length
+    });
+    
+    return {
+      success: true,
+      user: user,
+      role: PermissionManager.getUserRole(user.email),
+      initialized: true
+    };
+  } catch (error) {
+    console.error('Error initializing enterprise mode:', error);
+    // Return fallback mode on any error
+    return {
+      success: false,
+      fallbackMode: true,
+      message: 'Enterprise initialization failed - running in basic mode',
+      user: {
+        email: 'guest@smartcollege.com',
+        displayName: 'Guest User',
+        authenticated: false
+      },
+      role: 'tutor'
+    };
   }
-  
-  // Initialize user if first time
-  AuthManager.initializeUser(user.email);
-  
-  // Set default role if not set
-  const currentRole = PermissionManager.getUserRole(user.email);
-  if (!currentRole || currentRole === 'tutor') {
-    // First user gets admin, others get tutor by default
-    const existingUsers = getAllSystemUsers();
-    const role = existingUsers.length === 0 ? 'admin' : 'tutor';
-    PermissionManager.assignRole(user.email, role);
-  }
-  
-  // Update activity
-  ActivityTracker.updateUserActivity();
-  
-  // Log initialization
-  AuditLogger.log('system_init', 'system', 'enterprise_mode', user.email, {
-    role: PermissionManager.getUserRole(user.email),
-    existingUsers: getAllSystemUsers().length
-  });
-  
-  return {
-    success: true,
-    user: user,
-    role: PermissionManager.getUserRole(user.email),
-    initialized: true
-  };
 }
 
 /**
@@ -16624,9 +17486,152 @@ function runSecurityMaintenance() {
 }
 
 /**
+ * Show notifications for current user
+ */
+function showNotifications() {
+  const user = AuthManager.getCurrentUser();
+  if (!user.authenticated) {
+    SpreadsheetApp.getUi().alert('Please sign in to view notifications');
+    return;
+  }
+  
+  const notifications = getUserNotifications();
+  if (notifications.length === 0) {
+    SpreadsheetApp.getUi().alert('No notifications', 'You have no new notifications.', SpreadsheetApp.getUi().ButtonSet.OK);
+    return;
+  }
+  
+  // Create a simple HTML display of notifications
+  const html = notifications.map(n => 
+    `<div style="border-bottom: 1px solid #ccc; padding: 10px;">
+      <strong>${n.title}</strong><br>
+      ${n.message}<br>
+      <small>${new Date(n.timestamp).toLocaleString()}</small>
+    </div>`
+  ).join('');
+  
+  const htmlOutput = HtmlService.createHtmlOutput(html)
+    .setWidth(400)
+    .setHeight(300);
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Your Notifications');
+  
+  return { success: true };
+}
+
+/**
+ * Mark all notifications as read for current user
+ */
+function markAllNotificationsRead() {
+  const user = AuthManager.getCurrentUser();
+  if (!user.authenticated) {
+    return { success: false, message: 'Not authenticated' };
+  }
+  
+  const notifications = NotificationManager.getUserNotifications(user.email);
+  notifications.forEach(n => {
+    NotificationManager.markAsRead(user.email, n.id);
+  });
+  
+  return { success: true, message: 'All notifications marked as read' };
+}
+
+/**
+ * Get user notifications (wrapper for sidebar)
+ */
+function getUserNotifications() {
+  const user = AuthManager.getCurrentUser();
+  if (!user.authenticated) {
+    return [];
+  }
+  
+  return NotificationManager.getUserNotifications(user.email);
+}
+
+/**
+ * Update user display name
+ */
+function updateUserDisplayName(newName) {
+  const user = AuthManager.getCurrentUser();
+  if (!user.authenticated) {
+    throw new Error('Not authenticated');
+  }
+  
+  const userProperties = PropertiesService.getUserProperties();
+  userProperties.setProperty('displayName', newName);
+  
+  // Also update in auth manager if needed
+  const userDataStore = AuthManager.getUserDataStore(user.email);
+  userDataStore.displayName = newName;
+  AuthManager.saveUserDataStore(user.email, userDataStore);
+  
+  return { success: true };
+}
+
+/**
+ * Search clients by name
+ */
+function searchClientsByName(searchTerm) {
+  if (!searchTerm || searchTerm.length < 2) {
+    return [];
+  }
+  
+  const allClients = UnifiedClientDataStore.getAllClients();
+  const searchLower = searchTerm.toLowerCase();
+  
+  return allClients
+    .filter(client => 
+      client.name && 
+      client.name.toLowerCase().includes(searchLower) &&
+      client.isActive !== false
+    )
+    .slice(0, 10) // Limit to 10 results
+    .map(client => ({
+      name: client.name,
+      sheetName: client.sheetName || client.name
+    }));
+}
+
+/**
+ * Switch to a specific client
+ */
+function switchToClient(clientName) {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = spreadsheet.getSheets();
+  
+  for (const sheet of sheets) {
+    if (sheet.getName() === clientName || 
+        (sheet.getRange('A2').getValue() === clientName)) {
+      spreadsheet.setActiveSheet(sheet);
+      return { success: true };
+    }
+  }
+  
+  throw new Error(`Client sheet "${clientName}" not found`);
+}
+
+/**
+ * Force set user as configured (for fixing setup issues)
+ */
+function forceSetConfigured() {
+  const userProperties = PropertiesService.getUserProperties();
+  userProperties.setProperty('isConfigured', 'true');
+  
+  // Also set default tutor info if not set
+  if (!userProperties.getProperty('tutorName')) {
+    const user = Session.getActiveUser();
+    const email = user.getEmail() || Session.getEffectiveUser().getEmail();
+    userProperties.setProperty('tutorName', email ? email.split('@')[0] : 'Tutor');
+    userProperties.setProperty('tutorEmail', email || 'tutor@smartcollege.com');
+  }
+  
+  SpreadsheetApp.getUi().alert('Configuration Updated', 'User has been marked as configured. Enterprise sidebar will now be used.', SpreadsheetApp.getUi().ButtonSet.OK);
+  
+  // Refresh the UI
+  onOpen();
+  
+  return { success: true };
+}
+
+/**
  * Test the enhanced cache system
  */
-
-<function_calls>
-<invoke name="TodoWrite">
-<parameter name="todos">[{"content": "Design multi-user data architecture with user-specific data layers", "status": "completed", "id": "201"}, {"content": "Implement Google OAuth authentication and user management", "status": "completed", "id": "202"}, {"content": "Create concurrent editing resolution system", "status": "completed", "id": "203"}, {"content": "Build permission and access control system", "status": "completed", "id": "204"}, {"content": "Implement audit logging for compliance", "status": "completed", "id": "205"}, {"content": "Design data segregation for privacy/security", "status": "completed", "id": "206"}, {"content": "Create real-time collaboration features", "status": "completed", "id": "207"}, {"content": "Build notification system for changes", "status": "completed", "id": "208"}, {"content": "Implement data versioning and history", "status": "in_progress", "id": "209"}, {"content": "Create enterprise admin dashboard", "status": "pending", "id": "210"}, {"content": "Design organization management and multi-tenancy", "status": "pending", "id": "211"}, {"content": "Implement enhanced security measures", "status": "pending", "id": "212"}, {"content": "Create integration framework for LMS/CRM systems", "status": "pending", "id": "213"}, {"content": "Implement enterprise architecture in clientmanager.gs", "status": "completed", "id": "214"}]
