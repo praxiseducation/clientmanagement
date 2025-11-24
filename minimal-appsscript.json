@@ -26,10 +26,6 @@
       "layoutProperties": {
         "primaryColor": "#1a73e8"
       },
-      "homepageTrigger": {
-        "runFunction": "onHomepage_Minimal",
-        "enabled": true
-      },
       "universalActions": [
         {
           "label": "Refresh",
