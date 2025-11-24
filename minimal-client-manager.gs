@@ -298,6 +298,90 @@ function formatDateTime_Minimal(isoDateTime) {
 // ============================================================================
 
 /**
+ * Gets all clients from Clients sheet
+ */
+function getAllClients_Minimal() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const clientSheet = ss.getSheetByName('Clients') || ss.getSheetByName('Client Database');
+
+    if (!clientSheet) {
+      return [];
+    }
+
+    const data = clientSheet.getDataRange().getValues();
+    if (data.length <= 1) {
+      return []; // No clients (only header row)
+    }
+
+    const headers = data[0];
+    const clients = [];
+
+    // Find column indices
+    const nameCol = headers.indexOf('Name');
+    const emailCol = headers.indexOf('Email');
+    const parentEmailCol = headers.indexOf('Parent Email');
+    const phoneCol = headers.indexOf('Phone');
+    const gradeCol = headers.indexOf('Grade');
+    const notesCol = headers.indexOf('Notes');
+    const statusCol = headers.indexOf('Status');
+
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+
+      // Skip empty rows
+      if (!row[nameCol] || row[nameCol].toString().trim() === '') {
+        continue;
+      }
+
+      clients.push({
+        name: row[nameCol],
+        email: emailCol >= 0 ? row[emailCol] : '',
+        parentEmail: parentEmailCol >= 0 ? row[parentEmailCol] : '',
+        phone: phoneCol >= 0 ? row[phoneCol] : '',
+        grade: gradeCol >= 0 ? row[gradeCol] : '',
+        notes: notesCol >= 0 ? row[notesCol] : '',
+        status: statusCol >= 0 ? row[statusCol] : 'Active',
+        rowIndex: i + 1
+      });
+    }
+
+    return clients;
+  } catch (error) {
+    Logger.log('Error getting clients: ' + error.message);
+    return [];
+  }
+}
+
+/**
+ * Gets a client by name
+ */
+function getClientByName_Minimal(clientName) {
+  const clients = getAllClients_Minimal();
+  return clients.find(c => c.name === clientName) || null;
+}
+
+/**
+ * Searches for clients
+ */
+function searchClients_Minimal(searchTerm) {
+  if (!searchTerm || searchTerm.trim().length < 1) {
+    return [];
+  }
+
+  const clients = getAllClients_Minimal();
+  const term = searchTerm.toLowerCase().trim();
+
+  return clients.filter(client => {
+    return (
+      (client.name && client.name.toLowerCase().includes(term)) ||
+      (client.email && client.email.toLowerCase().includes(term)) ||
+      (client.parentEmail && client.parentEmail.toLowerCase().includes(term))
+    );
+  });
+}
+
+/**
  * Provides autocomplete suggestions
  */
 function getClientSuggestions_Minimal(e) {
@@ -310,28 +394,12 @@ function getClientSuggestions_Minimal(e) {
       .build();
   }
 
-  // Get unique client names from calendar and sheets
-  const appointments = getCachedAppointments_Minimal();
-  const clientNames = new Set();
-
-  appointments.forEach(apt => {
-    if (apt.clientName.toLowerCase().includes(query)) {
-      clientNames.add(apt.clientName);
-    }
-  });
-
-  // Also check existing sheets
-  const sheets = getAllClientSheets();
-  sheets.forEach(sheet => {
-    const name = sheet.name.replace(CONFIG_MINIMAL.SHEET_PREFIX, '');
-    if (name.toLowerCase().includes(query)) {
-      clientNames.add(name);
-    }
-  });
-
+  // Search clients from Clients sheet
+  const matchingClients = searchClients_Minimal(query);
   const suggestions = CardService.newSuggestions();
-  Array.from(clientNames).slice(0, 10).forEach(name => {
-    suggestions.addSuggestion(name);
+
+  matchingClients.slice(0, 10).forEach(client => {
+    suggestions.addSuggestion(client.name);
   });
 
   return CardService.newSuggestionsResponseBuilder()
@@ -363,26 +431,56 @@ function onClientSelected(e) {
  */
 function showClientDetail(e) {
   const clientName = e.parameters.clientName;
-  const metadata = getClientMetadata_Minimal(clientName);
+
+  // Get client from Clients sheet
+  const client = getClientByName_Minimal(clientName);
 
   const card = CardService.newCardBuilder()
     .setHeader(CardService.newCardHeader()
       .setTitle(clientName));
 
-  // Email section
-  if (metadata.emails && metadata.emails.length > 0) {
-    const emailSection = CardService.newCardSection();
-    metadata.emails.forEach(email => {
-      emailSection.addWidget(CardService.newDecoratedText()
-        .setText(email)
+  // Client info section (from Clients sheet)
+  if (client) {
+    const infoSection = CardService.newCardSection();
+
+    if (client.email) {
+      infoSection.addWidget(CardService.newDecoratedText()
+        .setText(client.email)
+        .setTopLabel('Email')
         .setIcon(CardService.Icon.EMAIL)
         .setButton(CardService.newImageButton()
           .setIcon(CardService.Icon.EMAIL)
           .setOpenLink(CardService.newOpenLink()
-            .setUrl('mailto:' + email)
+            .setUrl('mailto:' + client.email)
             .setOpenAs(CardService.OpenAs.FULL_SIZE))));
-    });
-    card.addSection(emailSection);
+    }
+
+    if (client.parentEmail) {
+      infoSection.addWidget(CardService.newDecoratedText()
+        .setText(client.parentEmail)
+        .setTopLabel('Parent Email')
+        .setIcon(CardService.Icon.EMAIL)
+        .setButton(CardService.newImageButton()
+          .setIcon(CardService.Icon.EMAIL)
+          .setOpenLink(CardService.newOpenLink()
+            .setUrl('mailto:' + client.parentEmail)
+            .setOpenAs(CardService.OpenAs.FULL_SIZE))));
+    }
+
+    if (client.phone) {
+      infoSection.addWidget(CardService.newDecoratedText()
+        .setText(client.phone)
+        .setTopLabel('Phone')
+        .setIcon(CardService.Icon.PHONE));
+    }
+
+    if (client.grade) {
+      infoSection.addWidget(CardService.newDecoratedText()
+        .setText(client.grade)
+        .setTopLabel('Grade'));
+    }
+
+    card.addSection(infoSection);
   }
 
   // Upcoming appointments
