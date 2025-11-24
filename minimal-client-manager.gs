@@ -116,17 +116,24 @@ function buildTodayDashboard() {
   // Action buttons
   const actionsSection = CardService.newCardSection();
 
-  const buttonSet = CardService.newButtonSet()
+  const buttonSet1 = CardService.newButtonSet()
+    .addButton(CardService.newTextButton()
+      .setText('➕ New Client')
+      .setOnClickAction(CardService.newAction()
+        .setFunctionName('showNewClientCard')))
     .addButton(CardService.newTextButton()
       .setText('📋 All Sheets')
       .setOnClickAction(CardService.newAction()
-        .setFunctionName('showAllSheetsCard')))
+        .setFunctionName('showAllSheetsCard')));
+
+  const buttonSet2 = CardService.newButtonSet()
     .addButton(CardService.newTextButton()
       .setText('⚙️ Settings')
       .setOnClickAction(CardService.newAction()
         .setFunctionName('showSettingsCard')));
 
-  actionsSection.addWidget(buttonSet);
+  actionsSection.addWidget(buttonSet1);
+  actionsSection.addWidget(buttonSet2);
   card.addSection(actionsSection);
 
   return card.build();
@@ -362,7 +369,7 @@ function getClientByName_Minimal(clientName) {
 }
 
 /**
- * Searches for clients
+ * Searches for clients by name only
  */
 function searchClients_Minimal(searchTerm) {
   if (!searchTerm || searchTerm.trim().length < 1) {
@@ -373,11 +380,7 @@ function searchClients_Minimal(searchTerm) {
   const term = searchTerm.toLowerCase().trim();
 
   return clients.filter(client => {
-    return (
-      (client.name && client.name.toLowerCase().includes(term)) ||
-      (client.email && client.email.toLowerCase().includes(term)) ||
-      (client.parentEmail && client.parentEmail.toLowerCase().includes(term))
-    );
+    return client.name && client.name.toLowerCase().includes(term);
   });
 }
 
@@ -427,63 +430,16 @@ function onClientSelected(e) {
 // ============================================================================
 
 /**
- * Shows client detail with upcoming appointments
+ * Shows client detail with upcoming sessions (chronological order)
  */
 function showClientDetail(e) {
   const clientName = e.parameters.clientName;
-
-  // Get client from Clients sheet
-  const client = getClientByName_Minimal(clientName);
 
   const card = CardService.newCardBuilder()
     .setHeader(CardService.newCardHeader()
       .setTitle(clientName));
 
-  // Client info section (from Clients sheet)
-  if (client) {
-    const infoSection = CardService.newCardSection();
-
-    if (client.email) {
-      infoSection.addWidget(CardService.newDecoratedText()
-        .setText(client.email)
-        .setTopLabel('Email')
-        .setIcon(CardService.Icon.EMAIL)
-        .setButton(CardService.newImageButton()
-          .setIcon(CardService.Icon.EMAIL)
-          .setOpenLink(CardService.newOpenLink()
-            .setUrl('mailto:' + client.email)
-            .setOpenAs(CardService.OpenAs.FULL_SIZE))));
-    }
-
-    if (client.parentEmail) {
-      infoSection.addWidget(CardService.newDecoratedText()
-        .setText(client.parentEmail)
-        .setTopLabel('Parent Email')
-        .setIcon(CardService.Icon.EMAIL)
-        .setButton(CardService.newImageButton()
-          .setIcon(CardService.Icon.EMAIL)
-          .setOpenLink(CardService.newOpenLink()
-            .setUrl('mailto:' + client.parentEmail)
-            .setOpenAs(CardService.OpenAs.FULL_SIZE))));
-    }
-
-    if (client.phone) {
-      infoSection.addWidget(CardService.newDecoratedText()
-        .setText(client.phone)
-        .setTopLabel('Phone')
-        .setIcon(CardService.Icon.PHONE));
-    }
-
-    if (client.grade) {
-      infoSection.addWidget(CardService.newDecoratedText()
-        .setText(client.grade)
-        .setTopLabel('Grade'));
-    }
-
-    card.addSection(infoSection);
-  }
-
-  // Upcoming appointments
+  // Upcoming sessions in chronological order
   const appointments = getCachedAppointments_Minimal()
     .filter(apt => apt.clientName === clientName)
     .sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
@@ -492,16 +448,26 @@ function showClientDetail(e) {
     const apptSection = CardService.newCardSection()
       .setHeader('Upcoming Sessions');
 
-    appointments.slice(0, 5).forEach((apt, idx) => {
-      apptSection.addWidget(CardService.newTextParagraph()
-        .setText(apt.formattedDateTime));
+    appointments.slice(0, 10).forEach((apt, idx) => {
+      // Show name and time
+      const timeMatch = apt.formattedDateTime.match(/at (.+)/);
+      const timeOnly = timeMatch ? timeMatch[1] : apt.formattedDateTime;
 
-      if (idx < Math.min(appointments.length, 5) - 1) {
+      apptSection.addWidget(CardService.newDecoratedText()
+        .setText(apt.formattedDateTime)
+        .setIcon(CardService.Icon.CLOCK));
+
+      if (idx < Math.min(appointments.length, 10) - 1) {
         apptSection.addWidget(CardService.newDivider());
       }
     });
 
     card.addSection(apptSection);
+  } else {
+    const noApptSection = CardService.newCardSection();
+    noApptSection.addWidget(CardService.newTextParagraph()
+      .setText('<i>No upcoming sessions scheduled</i>'));
+    card.addSection(noApptSection);
   }
 
   // Actions
@@ -524,6 +490,135 @@ function showClientDetail(e) {
   return CardService.newActionResponseBuilder()
     .setNavigation(CardService.newNavigation().pushCard(card.build()))
     .build();
+}
+
+// ============================================================================
+// NEW CLIENT DIALOG
+// ============================================================================
+
+/**
+ * Shows new client card (CardService form)
+ */
+function showNewClientCard(e) {
+  const card = CardService.newCardBuilder()
+    .setHeader(CardService.newCardHeader()
+      .setTitle('New Client'));
+
+  const section = CardService.newCardSection();
+
+  // Name (required)
+  section.addWidget(CardService.newTextInput()
+    .setFieldName('client_name')
+    .setTitle('Client Name *')
+    .setHint('Required'));
+
+  // Email
+  section.addWidget(CardService.newTextInput()
+    .setFieldName('client_email')
+    .setTitle('Email')
+    .setHint('Optional'));
+
+  // Parent Email
+  section.addWidget(CardService.newTextInput()
+    .setFieldName('parent_email')
+    .setTitle('Parent Email')
+    .setHint('Optional'));
+
+  // Phone
+  section.addWidget(CardService.newTextInput()
+    .setFieldName('client_phone')
+    .setTitle('Phone')
+    .setHint('Optional'));
+
+  // Grade
+  section.addWidget(CardService.newTextInput()
+    .setFieldName('client_grade')
+    .setTitle('Grade')
+    .setHint('Optional'));
+
+  // Notes
+  section.addWidget(CardService.newTextInput()
+    .setFieldName('client_notes')
+    .setTitle('Notes')
+    .setHint('Optional')
+    .setMultiline(true));
+
+  card.addSection(section);
+
+  // Actions
+  const actionsSection = CardService.newCardSection();
+
+  actionsSection.addWidget(CardService.newButtonSet()
+    .addButton(CardService.newTextButton()
+      .setText('Save')
+      .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+      .setOnClickAction(CardService.newAction()
+        .setFunctionName('saveNewClient')))
+    .addButton(CardService.newTextButton()
+      .setText('Cancel')
+      .setOnClickAction(CardService.newAction()
+        .setFunctionName('refreshDashboard'))));
+
+  card.addSection(actionsSection);
+
+  return CardService.newActionResponseBuilder()
+    .setNavigation(CardService.newNavigation().pushCard(card.build()))
+    .build();
+}
+
+/**
+ * Saves new client to Clients sheet
+ */
+function saveNewClient(e) {
+  const formInput = e.formInput;
+
+  // Validate required fields
+  if (!formInput.client_name || formInput.client_name.trim() === '') {
+    return CardService.newActionResponseBuilder()
+      .setNotification(CardService.newNotification()
+        .setText('Client name is required'))
+      .build();
+  }
+
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let clientSheet = ss.getSheetByName('Clients') || ss.getSheetByName('Client Database');
+
+    // Create Clients sheet if it doesn't exist
+    if (!clientSheet) {
+      clientSheet = ss.insertSheet('Clients');
+      const headers = ['Name', 'Email', 'Parent Email', 'Phone', 'Grade', 'Notes', 'Status', 'Date Added'];
+      clientSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      clientSheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+      clientSheet.setFrozenRows(1);
+    }
+
+    // Add new client
+    const newRow = [
+      formInput.client_name.trim(),
+      formInput.client_email || '',
+      formInput.parent_email || '',
+      formInput.client_phone || '',
+      formInput.client_grade || '',
+      formInput.client_notes || '',
+      'Active',
+      new Date()
+    ];
+
+    clientSheet.appendRow(newRow);
+
+    return CardService.newActionResponseBuilder()
+      .setNotification(CardService.newNotification()
+        .setText('Client added: ' + formInput.client_name))
+      .setNavigation(CardService.newNavigation().popToRoot().updateCard(buildTodayDashboard()))
+      .build();
+
+  } catch (error) {
+    return CardService.newActionResponseBuilder()
+      .setNotification(CardService.newNotification()
+        .setText('Error: ' + error.message))
+      .build();
+  }
 }
 
 // ============================================================================
