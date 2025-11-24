@@ -433,12 +433,14 @@ function showClientDetail(e) {
 // ============================================================================
 
 /**
- * Opens or creates a client sheet
+ * Opens or creates a client sheet (activates it in current spreadsheet)
  */
 function openClientSheet(e) {
   const clientName = e.parameters.clientName;
 
   try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+
     // Check if sheet exists
     let sheet = getClientSheet(clientName);
 
@@ -447,15 +449,16 @@ function openClientSheet(e) {
       sheet = createClientSheet(clientName);
     }
 
-    // Use URL from sheet object (no need to open by ID)
-    const url = sheet.url || ('https://docs.google.com/spreadsheets/d/' + sheet.spreadsheetId + '/edit');
+    // Activate the sheet
+    const sheetObj = ss.getSheetByName(sheet.name);
+    if (sheetObj) {
+      ss.setActiveSheet(sheetObj);
+    }
 
     return CardService.newActionResponseBuilder()
       .setNotification(CardService.newNotification()
-        .setText('Opening ' + clientName + ' sheet...'))
-      .setOpenLink(CardService.newOpenLink()
-        .setUrl(url)
-        .setOpenAs(CardService.OpenAs.FULL_SIZE))
+        .setText('Opened ' + clientName + ' sheet'))
+      .setNavigation(CardService.newNavigation().popToRoot())
       .build();
 
   } catch (error) {
@@ -467,25 +470,34 @@ function openClientSheet(e) {
 }
 
 /**
- * Gets client sheet if it exists
+ * Gets client sheet if it exists in current spreadsheet
  */
 function getClientSheet(clientName) {
   const sheetName = CONFIG_MINIMAL.SHEET_PREFIX + clientName;
-  const sheets = getAllClientSheets();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(sheetName);
 
-  return sheets.find(s => s.name === sheetName);
+  if (sheet) {
+    return {
+      name: sheetName,
+      sheetId: sheet.getSheetId()
+    };
+  }
+
+  return null;
 }
 
 /**
- * Creates a new client sheet
+ * Creates a new client sheet within the current spreadsheet
  */
 function createClientSheet(clientName) {
   const sheetName = CONFIG_MINIMAL.SHEET_PREFIX + clientName;
 
-  // Create new spreadsheet
-  const ss = SpreadsheetApp.create(sheetName);
-  const sheet = ss.getActiveSheet();
-  sheet.setName('Session Notes');
+  // Get current spreadsheet
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // Create new sheet within current spreadsheet
+  const sheet = ss.insertSheet(sheetName);
 
   // Set up structure
   const headers = [
@@ -508,46 +520,35 @@ function createClientSheet(clientName) {
     sheet.autoResizeColumn(i);
   }
 
-  // Move to folder if configured
-  const folderId = PropertiesService.getUserProperties().getProperty(CONFIG_MINIMAL.FOLDER_ID_KEY);
-  if (folderId) {
-    try {
-      const file = DriveApp.getFileById(ss.getId());
-      const folder = DriveApp.getFolderById(folderId);
-      file.moveTo(folder);
-    } catch (e) {
-      // Ignore folder errors
-    }
-  }
-
   // Store metadata
   const metadata = getClientMetadata_Minimal(clientName);
-  metadata.spreadsheetId = ss.getId();
-  metadata.spreadsheetUrl = ss.getUrl();
+  metadata.sheetId = sheet.getSheetId();
+  metadata.sheetName = sheetName;
   saveClientMetadata_Minimal(clientName, metadata);
 
   return {
     name: sheetName,
-    spreadsheetId: ss.getId(),
-    url: ss.getUrl()
+    sheetId: sheet.getSheetId()
   };
 }
 
 /**
- * Gets all client sheets
+ * Gets all client sheets in current spreadsheet
  */
 function getAllClientSheets() {
   const sheets = [];
-  const metadata = getAllClientMetadata_Minimal();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const allSheets = ss.getSheets();
 
-  // From metadata
-  Object.keys(metadata).forEach(clientName => {
-    if (metadata[clientName].spreadsheetId) {
+  // Find all sheets with client prefix
+  allSheets.forEach(sheet => {
+    const name = sheet.getName();
+    if (name.startsWith(CONFIG_MINIMAL.SHEET_PREFIX)) {
+      const clientName = name.replace(CONFIG_MINIMAL.SHEET_PREFIX, '');
       sheets.push({
-        name: CONFIG_MINIMAL.SHEET_PREFIX + clientName,
+        name: name,
         clientName: clientName,
-        spreadsheetId: metadata[clientName].spreadsheetId,
-        url: metadata[clientName].spreadsheetUrl
+        sheetId: sheet.getSheetId()
       });
     }
   });
@@ -586,7 +587,7 @@ function showAllSheetsCard(e) {
           .setText('Open')
           .setOnClickAction(CardService.newAction()
             .setFunctionName('openClientSheetFromList')
-            .setParameters({ spreadsheetId: sheet.spreadsheetId, clientName: sheet.clientName }))));
+            .setParameters({ clientName: sheet.clientName }))));
 
       if (idx < sheets.length - 1) {
         section.addWidget(CardService.newDivider());
@@ -611,28 +612,24 @@ function showAllSheetsCard(e) {
 }
 
 /**
- * Opens sheet from all sheets list
+ * Opens sheet from all sheets list (activates it)
  */
 function openClientSheetFromList(e) {
-  const spreadsheetId = e.parameters.spreadsheetId;
   const clientName = e.parameters.clientName;
 
   try {
-    // Get URL from metadata instead of opening file
-    const metadata = getClientMetadata_Minimal(clientName);
-    const url = metadata.spreadsheetUrl;
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheetName = CONFIG_MINIMAL.SHEET_PREFIX + clientName;
+    const sheet = ss.getSheetByName(sheetName);
 
-    if (!url) {
-      // Fallback: construct URL from ID
-      const url = 'https://docs.google.com/spreadsheets/d/' + spreadsheetId + '/edit';
+    if (sheet) {
+      ss.setActiveSheet(sheet);
     }
 
     return CardService.newActionResponseBuilder()
       .setNotification(CardService.newNotification()
-        .setText('Opening ' + clientName + '...'))
-      .setOpenLink(CardService.newOpenLink()
-        .setUrl(url)
-        .setOpenAs(CardService.OpenAs.FULL_SIZE))
+        .setText('Opened ' + clientName))
+      .setNavigation(CardService.newNavigation().popToRoot())
       .build();
 
   } catch (error) {
@@ -663,9 +660,8 @@ function getClientMetadata_Minimal(clientName) {
   const all = getAllClientMetadata_Minimal();
   return all[clientName] || {
     emails: [],
-    files: [],
-    spreadsheetId: null,
-    spreadsheetUrl: null
+    sheetId: null,
+    sheetName: null
   };
 }
 
@@ -706,12 +702,6 @@ function showSettingsCard(e) {
     .setText('Refresh Appointments')
     .setOnClickAction(CardService.newAction()
       .setFunctionName('manualRefreshCache')));
-
-  // Set folder button
-  section.addWidget(CardService.newTextButton()
-    .setText('Set Storage Folder')
-    .setOnClickAction(CardService.newAction()
-      .setFunctionName('showFolderSetup')));
 
   card.addSection(section);
 
@@ -826,81 +816,3 @@ function manualRefreshCache(e) {
     .build();
 }
 
-/**
- * Shows folder setup
- */
-function showFolderSetup(e) {
-  const card = CardService.newCardBuilder()
-    .setHeader(CardService.newCardHeader()
-      .setTitle('Storage Folder'));
-
-  const section = CardService.newCardSection();
-
-  section.addWidget(CardService.newTextParagraph()
-    .setText('Enter the ID of the Google Drive folder where client sheets should be stored.\n\nTo get folder ID: Open folder in Drive, copy the last part of the URL after /folders/'));
-
-  const currentFolder = PropertiesService.getUserProperties().getProperty(CONFIG_MINIMAL.FOLDER_ID_KEY);
-
-  section.addWidget(CardService.newTextInput()
-    .setFieldName('folder_id')
-    .setTitle('Folder ID')
-    .setHint('abc123xyz...')
-    .setValue(currentFolder || ''));
-
-  card.addSection(section);
-
-  // Save button
-  const actionsSection = CardService.newCardSection();
-  actionsSection.addWidget(CardService.newTextButton()
-    .setText('Save')
-    .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-    .setOnClickAction(CardService.newAction()
-      .setFunctionName('saveFolderSelection')));
-
-  actionsSection.addWidget(CardService.newTextButton()
-    .setText('Cancel')
-    .setOnClickAction(CardService.newAction()
-      .setFunctionName('showSettingsCard')));
-
-  card.addSection(actionsSection);
-
-  return CardService.newActionResponseBuilder()
-    .setNavigation(CardService.newNavigation().pushCard(card.build()))
-    .build();
-}
-
-/**
- * Saves folder selection
- */
-function saveFolderSelection(e) {
-  const folderId = e.formInput.folder_id;
-
-  if (folderId && folderId.trim()) {
-    try {
-      // Validate folder exists
-      DriveApp.getFolderById(folderId.trim());
-      PropertiesService.getUserProperties().setProperty(CONFIG_MINIMAL.FOLDER_ID_KEY, folderId.trim());
-
-      return CardService.newActionResponseBuilder()
-        .setNotification(CardService.newNotification()
-          .setText('Folder saved'))
-        .setNavigation(CardService.newNavigation().popCard())
-        .build();
-
-    } catch (error) {
-      return CardService.newActionResponseBuilder()
-        .setNotification(CardService.newNotification()
-          .setText('Invalid folder ID'))
-        .build();
-    }
-  } else {
-    // Clear folder
-    PropertiesService.getUserProperties().deleteProperty(CONFIG_MINIMAL.FOLDER_ID_KEY);
-
-    return CardService.newActionResponseBuilder()
-      .setNotification(CardService.newNotification()
-        .setText('Folder cleared'))
-      .setNavigation(CardService.newNavigation().popCard())
-      .build();
-  }
-}
