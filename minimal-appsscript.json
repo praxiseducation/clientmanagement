@@ -36,6 +36,12 @@
           "runFunction": "refreshDashboard"
         }
       ]
+    },
+    "sheets": {
+      "homepageTrigger": {
+        "runFunction": "onHomepage_Minimal",
+        "enabled": true
+      }
     }
   }
 }
