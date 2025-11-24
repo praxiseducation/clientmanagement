@@ -943,8 +943,8 @@ function buildCalendarSetupCard() {
 
       calendars.items.forEach(cal => {
         const label = cal.summary + (cal.primary ? ' (Primary)' : '');
-        const selected = currentCalendarId ? (cal.id === currentCalendarId) : cal.primary;
-        dropdown.addItem(label, cal.id, selected);
+        const selected = currentCalendarId ? (cal.id === currentCalendarId) : (cal.primary || false);
+        dropdown.addItem(label, cal.id, selected === true);
       });
 
       section.addWidget(dropdown);
