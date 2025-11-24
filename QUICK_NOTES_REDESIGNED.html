@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body {
+        font-family: 'Google Sans', Arial, sans-serif;
+        margin: 0;
+        padding: 15px;
+        font-size: 14px;
+      }
+      
+      /* Current Client Header - matching sidebar style */
+      .current-client {
+        background: #e8f0fe;
+        padding: 12px;
+        border-radius: 6px;
+        margin-bottom: 20px;
+        font-size: 13px;
+      }
+      
+      .current-client-label {
+        font-weight: 500;
+        color: #1a73e8;
+        margin-bottom: 4px;
+      }
+      
+      .current-client-name {
+        color: #202124;
+        font-weight: 600;
+      }
+      
+      /* Section styling - matching sidebar */
+      .section {
+        margin-bottom: 25px;
+      }
+      
+      .section-title {
+        font-weight: 500;
+        color: #5f6368;
+        margin-bottom: 12px;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      
+      /* Note sections */
+      .notes-field {
+        margin-bottom: 20px;
+      }
+      
+      .notes-label {
+        font-weight: 500;
+        color: #5f6368;
+        margin-bottom: 8px;
+        font-size: 13px;
+        display: block;
+      }
+      
+      .notes-textarea {
+        width: 100%;
+        min-height: 80px;
+        padding: 10px;
+        border: 1px solid #dadce0;
+        border-radius: 6px;
+        font-family: 'Google Sans', Arial, sans-serif;
+        font-size: 14px;
+        resize: vertical;
+        transition: all 0.3s;
+        box-sizing: border-box;
+      }
+      
+      .notes-textarea:focus {
+        outline: none;
+        border-color: #1a73e8;
+        box-shadow: 0 1px 3px rgba(26, 115, 232, 0.2);
+      }
+      
+      .notes-textarea:hover {
+        border-color: #1a73e8;
+      }
+      
+      /* Quick buttons container */
+      .quick-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+      }
+      
+      .quick-button {
+        padding: 6px 12px;
+        border: 1px solid #dadce0;
+        border-radius: 16px;
+        background: white;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: #5f6368;
+      }
+      
+      .quick-button:hover {
+        background: #f8f9fa;
+        border-color: #1a73e8;
+        color: #1a73e8;
+      }
+      
+      .quick-button.selected {
+        background: #1a73e8;
+        color: white;
+        border-color: #1a73e8;
+      }
+      
+      /* Button styling - matching sidebar */
+      button {
+        width: 100%;
+        padding: 12px;
+        margin-bottom: 8px;
+        border: 1px solid #dadce0;
+        border-radius: 6px;
+        background: white;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        transition: all 0.3s;
+        text-align: left;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      
+      button:hover:not(:disabled) {
+        background: #f8f9fa;
+        border-color: #1a73e8;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+      
+      button:active {
+        transform: translateY(0);
+        box-shadow: none;
+      }
+      
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      
+      .primary {
+        background: #1a73e8;
+        color: white;
+        border: none;
+        text-align: center;
+        justify-content: center;
+      }
+      
+      .primary:hover:not(:disabled) {
+        background: #1557b0;
+      }
+      
+      .secondary {
+        background: white;
+        color: #1a73e8;
+        border: 1px solid #1a73e8;
+        text-align: center;
+        justify-content: center;
+      }
+      
+      .secondary:hover:not(:disabled) {
+        background: #e8f0fe;
+      }
+      
+      .danger {
+        background: white;
+        color: #d93025;
+        border: 1px solid #d93025;
+        text-align: center;
+        justify-content: center;
+      }
+      
+      .danger:hover:not(:disabled) {
+        background: #fce8e6;
+      }
+      
+      /* Action buttons grid */
+      .button-row {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      
+      .button-row button {
+        flex: 1;
+        margin-bottom: 0;
+      }
+      
+      /* Icon styling */
+      .icon {
+        font-size: 18px;
+        width: 24px;
+        text-align: center;
+      }
+      
+      /* Loading state */
+      .loading {
+        display: none;
+        text-align: center;
+        padding: 20px;
+      }
+      
+      .spinner {
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #1a73e8;
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto;
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      
+      /* Messages */
+      .message {
+        font-size: 13px;
+        padding: 10px;
+        border-radius: 4px;
+        display: none;
+        margin-bottom: 15px;
+      }
+      
+      .error {
+        color: #d93025;
+        background: #fce8e6;
+      }
+      
+      .success {
+        color: #188038;
+        background: #e6f4ea;
+      }
+      
+      /* Collapsible sections */
+      .collapsible {
+        cursor: pointer;
+        user-select: none;
+      }
+      
+      .collapsible::before {
+        content: '▼';
+        display: inline-block;
+        margin-right: 6px;
+        transition: transform 0.3s;
+        font-size: 10px;
+      }
+      
+      .collapsible.collapsed::before {
+        transform: rotate(-90deg);
+      }
+      
+      .collapsible-content {
+        transition: max-height 0.3s ease;
+        overflow: hidden;
+      }
+      
+      /* Auto-save indicator */
+      .auto-save-indicator {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        padding: 8px 12px;
+        background: #e8f0fe;
+        color: #1a73e8;
+        border-radius: 20px;
+        font-size: 12px;
+        display: none;
+        animation: fadeIn 0.3s;
+      }
+      
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      
+      .saving {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Current Client Display -->
+    <div class="current-client">
+      <div class="current-client-label">Quick Notes for:</div>
+      <div id="clientName" class="current-client-name">Loading...</div>
+    </div>
+    
+    <!-- Success/Error Messages -->
+    <div class="message success" id="successMessage"></div>
+    <div class="message error" id="errorMessage"></div>
+    
+    <!-- Session Highlights Section -->
+    <div class="section">
+      <div class="section-title collapsible" onclick="toggleSection('highlights')">
+        Session Highlights
+      </div>
+      <div id="highlightsContent" class="collapsible-content">
+        <div class="notes-field">
+          <label class="notes-label">Today's Wins</label>
+          <textarea id="wins" class="notes-textarea" placeholder="What went well today?"></textarea>
+          <div id="winsButtons" class="quick-buttons"></div>
+        </div>
+        
+        <div class="notes-field">
+          <label class="notes-label">Struggles & Challenges</label>
+          <textarea id="struggles" class="notes-textarea" placeholder="Areas where student struggled"></textarea>
+          <div id="strugglesButtons" class="quick-buttons"></div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Skills Development Section -->
+    <div class="section">
+      <div class="section-title collapsible" onclick="toggleSection('skills')">
+        Skills Development
+      </div>
+      <div id="skillsContent" class="collapsible-content">
+        <div class="notes-field">
+          <label class="notes-label">Skills Mastered</label>
+          <textarea id="skillsMastered" class="notes-textarea" placeholder="Skills the student has mastered"></textarea>
+          <div id="skillsMasteredButtons" class="quick-buttons"></div>
+        </div>
+        
+        <div class="notes-field">
+          <label class="notes-label">Skills Practiced</label>
+          <textarea id="skillsPracticed" class="notes-textarea" placeholder="Skills practiced during session"></textarea>
+          <div id="skillsPracticedButtons" class="quick-buttons"></div>
+        </div>
+        
+        <div class="notes-field">
+          <label class="notes-label">Skills Introduced</label>
+          <textarea id="skillsIntroduced" class="notes-textarea" placeholder="New skills introduced today"></textarea>
+          <div id="skillsIntroducedButtons" class="quick-buttons"></div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Communication Section -->
+    <div class="section">
+      <div class="section-title collapsible" onclick="toggleSection('communication')">
+        Communication & Planning
+      </div>
+      <div id="communicationContent" class="collapsible-content">
+        <div class="notes-field">
+          <label class="notes-label">Parent Communication</label>
+          <textarea id="parent" class="notes-textarea" placeholder="Notes for parents"></textarea>
+          <div id="parentButtons" class="quick-buttons"></div>
+        </div>
+        
+        <div class="notes-field">
+          <label class="notes-label">Next Session Planning</label>
+          <textarea id="next" class="notes-textarea" placeholder="Plans for next session"></textarea>
+          <div id="nextButtons" class="quick-buttons"></div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Action Buttons Section -->
+    <div class="section">
+      <div class="section-title">Actions</div>
+      
+      <button class="primary" onclick="saveQuickNotes()">
+        <span class="icon">💾</span>
+        Save Notes
+      </button>
+      
+      <div class="button-row">
+        <button class="secondary" onclick="sendRecap()">
+          <span class="icon">✉️</span>
+          Send Recap
+        </button>
+        <button class="secondary" onclick="reloadNotes()">
+          <span class="icon">🔄</span>
+          Reload
+        </button>
+      </div>
+      
+      <button onclick="openSettings()">
+        <span class="icon">⚙️</span>
+        Quick Button Settings
+      </button>
+      
+      <button class="danger" onclick="clearNotes()">
+        <span class="icon">🗑️</span>
+        Clear All Notes
+      </button>
+    </div>
+    
+    <!-- Auto-save indicator -->
+    <div id="autoSaveIndicator" class="auto-save-indicator">
+      Auto-saving...
+    </div>
+    
+    <!-- Loading spinner -->
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <p>Loading...</p>
+    </div>
+    
+    <script>
+      // Initialize on load
+      document.addEventListener('DOMContentLoaded', initializeQuickNotes);
+      
+      function initializeQuickNotes() {
+        // Load client information
+        loadClientInfo();
+        
+        // Load saved notes
+        loadSavedNotes();
+        
+        // Load quick buttons
+        loadQuickButtons();
+        
+        // Setup auto-save
+        setupAutoSave();
+      }
+      
+      function loadClientInfo() {
+        google.script.run
+          .withSuccessHandler(function(clientInfo) {
+            if (clientInfo && clientInfo.name) {
+              document.getElementById('clientName').textContent = clientInfo.name;
+            } else {
+              document.getElementById('clientName').textContent = 'No client selected';
+            }
+          })
+          .withFailureHandler(function(error) {
+            console.error('Failed to load client info:', error);
+            document.getElementById('clientName').textContent = 'Error loading client';
+          })
+          .getCurrentClientInfo();
+      }
+      
+      function loadSavedNotes() {
+        showLoading(true);
+        google.script.run
+          .withSuccessHandler(function(notesData) {
+            if (notesData && notesData.data) {
+              try {
+                const notes = JSON.parse(notesData.data);
+                const fields = ['wins', 'skillsMastered', 'skillsPracticed', 'skillsIntroduced', 'struggles', 'parent', 'next'];
+                
+                fields.forEach(field => {
+                  const element = document.getElementById(field);
+                  if (element && notes[field]) {
+                    element.value = notes[field];
+                  }
+                });
+              } catch (e) {
+                console.error('Error parsing notes:', e);
+              }
+            }
+            showLoading(false);
+          })
+          .withFailureHandler(function(error) {
+            console.error('Failed to load notes:', error);
+            showLoading(false);
+          })
+          .getQuickNotes();
+      }
+      
+      function loadQuickButtons() {
+        google.script.run
+          .withSuccessHandler(function(settings) {
+            if (settings) {
+              Object.keys(settings).forEach(section => {
+                const container = document.getElementById(section + 'Buttons');
+                if (container && settings[section]) {
+                  renderQuickButtons(container, settings[section], section);
+                }
+              });
+            }
+          })
+          .withFailureHandler(function(error) {
+            console.error('Failed to load quick buttons:', error);
+          })
+          .getQuickNotesButtons();
+      }
+      
+      function renderQuickButtons(container, buttons, section) {
+        container.innerHTML = '';
+        buttons.forEach(text => {
+          const button = document.createElement('button');
+          button.className = 'quick-button';
+          button.textContent = text;
+          button.onclick = function() {
+            toggleQuickButton(this, section);
+          };
+          container.appendChild(button);
+        });
+      }
+      
+      function toggleQuickButton(button, section) {
+        const textarea = document.getElementById(section);
+        if (!textarea) return;
+        
+        const text = button.textContent;
+        const currentValue = textarea.value;
+        
+        if (button.classList.contains('selected')) {
+          // Remove from textarea
+          button.classList.remove('selected');
+          const lines = currentValue.split('\n');
+          const filtered = lines.filter(line => !line.includes(text));
+          textarea.value = filtered.join('\n').trim();
+        } else {
+          // Add to textarea
+          button.classList.add('selected');
+          if (currentValue && !currentValue.endsWith('\n')) {
+            textarea.value += '\n';
+          }
+          textarea.value += '• ' + text;
+        }
+        
+        // Trigger auto-save
+        triggerAutoSave();
+      }
+      
+      function setupAutoSave() {
+        const textareas = document.querySelectorAll('.notes-textarea');
+        textareas.forEach(textarea => {
+          textarea.addEventListener('input', triggerAutoSave);
+        });
+      }
+      
+      let autoSaveTimeout;
+      function triggerAutoSave() {
+        if (autoSaveTimeout) {
+          clearTimeout(autoSaveTimeout);
+        }
+        
+        // Show auto-save indicator
+        const indicator = document.getElementById('autoSaveIndicator');
+        indicator.classList.add('saving');
+        
+        autoSaveTimeout = setTimeout(() => {
+          saveQuickNotes(true); // true = silent save
+        }, 2000);
+      }
+      
+      function saveQuickNotes(silent = false) {
+        const notes = {
+          wins: document.getElementById('wins').value,
+          skillsMastered: document.getElementById('skillsMastered').value,
+          skillsPracticed: document.getElementById('skillsPracticed').value,
+          skillsIntroduced: document.getElementById('skillsIntroduced').value,
+          struggles: document.getElementById('struggles').value,
+          parent: document.getElementById('parent').value,
+          next: document.getElementById('next').value
+        };
+        
+        google.script.run
+          .withSuccessHandler(function() {
+            // Hide auto-save indicator
+            const indicator = document.getElementById('autoSaveIndicator');
+            indicator.classList.remove('saving');
+            
+            if (!silent) {
+              showMessage('Notes saved successfully!', 'success');
+            }
+          })
+          .withFailureHandler(function(error) {
+            console.error('Failed to save notes:', error);
+            if (!silent) {
+              showMessage('Failed to save notes', 'error');
+            }
+          })
+          .saveQuickNotes(notes);
+      }
+      
+      function clearNotes() {
+        if (!confirm('Are you sure you want to clear all notes? This cannot be undone.')) {
+          return;
+        }
+        
+        const fields = ['wins', 'skillsMastered', 'skillsPracticed', 'skillsIntroduced', 'struggles', 'parent', 'next'];
+        fields.forEach(field => {
+          const element = document.getElementById(field);
+          if (element) {
+            element.value = '';
+          }
+        });
+        
+        // Clear selected quick buttons
+        document.querySelectorAll('.quick-button.selected').forEach(button => {
+          button.classList.remove('selected');
+        });
+        
+        saveQuickNotes();
+      }
+      
+      function reloadNotes() {
+        if (confirm('Reload saved notes? Any unsaved changes will be lost.')) {
+          loadSavedNotes();
+          showMessage('Notes reloaded', 'success');
+        }
+      }
+      
+      function sendRecap() {
+        // Save notes first
+        saveQuickNotes(true);
+        
+        showLoading(true);
+        google.script.run
+          .withSuccessHandler(function() {
+            showLoading(false);
+            showMessage('Recap dialog opened', 'success');
+          })
+          .withFailureHandler(function(error) {
+            showLoading(false);
+            showMessage('Failed to open recap dialog', 'error');
+          })
+          .showRecapDialog();
+      }
+      
+      function openSettings() {
+        google.script.run
+          .withSuccessHandler(function() {
+            // Settings opened
+          })
+          .withFailureHandler(function(error) {
+            showMessage('Failed to open settings', 'error');
+          })
+          .showQuickNotesSettings();
+      }
+      
+      function toggleSection(sectionId) {
+        const title = event.target;
+        const content = document.getElementById(sectionId + 'Content');
+        
+        title.classList.toggle('collapsed');
+        
+        if (title.classList.contains('collapsed')) {
+          content.style.maxHeight = '0';
+        } else {
+          content.style.maxHeight = content.scrollHeight + 'px';
+        }
+      }
+      
+      function showMessage(text, type) {
+        const messageEl = type === 'success' ? 
+          document.getElementById('successMessage') : 
+          document.getElementById('errorMessage');
+        
+        messageEl.textContent = text;
+        messageEl.style.display = 'block';
+        
+        setTimeout(() => {
+          messageEl.style.display = 'none';
+        }, 3000);
+      }
+      
+      function showLoading(show) {
+        document.getElementById('loading').style.display = show ? 'block' : 'none';
+      }
+      
+      // Initialize collapsible sections as expanded
+      document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.collapsible-content').forEach(content => {
+          content.style.maxHeight = content.scrollHeight + 'px';
+        });
+      });
+    </script>
+  </body>
+</html>

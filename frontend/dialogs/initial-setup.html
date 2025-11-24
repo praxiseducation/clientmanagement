@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        padding: 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        margin: 0;
+      }
+      
+      .setup-container {
+        max-width: 500px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 12px;
+        padding: 30px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+      }
+      
+      h1 {
+        color: #202124;
+        margin-bottom: 10px;
+        font-size: 24px;
+      }
+      
+      .subtitle {
+        color: #5f6368;
+        margin-bottom: 30px;
+        font-size: 14px;
+      }
+      
+      .form-group {
+        margin-bottom: 20px;
+      }
+      
+      label {
+        display: block;
+        margin-bottom: 6px;
+        color: #202124;
+        font-weight: 500;
+        font-size: 14px;
+      }
+      
+      input[type="text"],
+      input[type="email"],
+      input[type="url"] {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #dadce0;
+        border-radius: 6px;
+        font-size: 14px;
+        font-family: inherit;
+        box-sizing: border-box;
+        transition: border-color 0.2s;
+      }
+      
+      input:focus {
+        outline: none;
+        border-color: #1a73e8;
+        box-shadow: 0 0 0 2px rgba(26,115,232,0.1);
+      }
+      
+      .help-text {
+        font-size: 12px;
+        color: #5f6368;
+        margin-top: 4px;
+      }
+      
+      .button-group {
+        display: flex;
+        gap: 10px;
+        margin-top: 30px;
+      }
+      
+      button {
+        flex: 1;
+        padding: 12px 24px;
+        border-radius: 6px;
+        font-weight: 500;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-family: inherit;
+        border: none;
+      }
+      
+      .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+      }
+      
+      .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(102,126,234,0.4);
+      }
+      
+      .btn-secondary {
+        background: #f8f9fa;
+        color: #5f6368;
+        border: 1px solid #dadce0;
+      }
+      
+      .btn-secondary:hover {
+        background: #f1f3f4;
+      }
+      
+      .loading {
+        display: none;
+        text-align: center;
+        margin-top: 20px;
+        color: #5f6368;
+      }
+      
+      .spinner {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #667eea;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      
+      .error-message {
+        color: #d93025;
+        background: #fce8e6;
+        padding: 10px;
+        border-radius: 6px;
+        margin-top: 10px;
+        display: none;
+        font-size: 13px;
+      }
+      
+      .success-message {
+        color: #188038;
+        background: #e6f4ea;
+        padding: 10px;
+        border-radius: 6px;
+        margin-top: 10px;
+        display: none;
+        font-size: 13px;
+      }
+      
+      .divider {
+        height: 1px;
+        background: #e8eaed;
+        margin: 25px 0;
+      }
+      
+      .optional-label {
+        color: #5f6368;
+        font-size: 12px;
+        font-weight: normal;
+        margin-left: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="setup-container">
+      <h1>Welcome to Client Manager! 🚀</h1>
+      <p class="subtitle">Let's get you set up in just a minute. This information will be used for your session recap emails.</p>
+      
+      <form id="setupForm">
+        <!-- Basic Information -->
+        <div class="form-group">
+          <label for="tutorName">Your Name <span style="color: #d93025;">*</span></label>
+          <input type="text" id="tutorName" placeholder="e.g., Jane Smith" required>
+          <div class="help-text">This will appear in your email signatures</div>
+        </div>
+        
+        <div class="form-group">
+          <label for="tutorEmail">Your Email <span style="color: #d93025;">*</span></label>
+          <input type="email" id="tutorEmail" placeholder="e.g., jane@example.com" required>
+          <div class="help-text">Where replies to recap emails will be sent</div>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <!-- Company Information -->
+        <div class="form-group">
+          <label for="companyName">Company/Organization Name <span class="optional-label">(optional)</span></label>
+          <input type="text" id="companyName" placeholder="e.g., Smart College" value="<?= defaultCompany ?>">
+          <div class="help-text">Your organization or tutoring business name</div>
+        </div>
+        
+        <div class="form-group">
+          <label for="companyUrl">Company Website <span class="optional-label">(optional)</span></label>
+          <input type="url" id="companyUrl" placeholder="e.g., https://www.example.com" value="<?= defaultUrl ?>">
+          <div class="help-text">Will be included in email footers</div>
+        </div>
+        
+        <? if (isEnterprise) { ?>
+        <div class="divider"></div>
+        
+        <!-- Enterprise Features -->
+        <div class="form-group">
+          <label for="acuityUserId">Acuity User ID <span class="optional-label">(optional)</span></label>
+          <input type="text" id="acuityUserId" placeholder="e.g., 12345">
+          <div class="help-text">For automatic appointment integration (can be added later)</div>
+        </div>
+        <? } ?>
+        
+        <!-- Buttons -->
+        <div class="button-group">
+          <button type="button" class="btn-secondary" onclick="skipSetup()">Skip for Now</button>
+          <button type="submit" class="btn-primary">Complete Setup</button>
+        </div>
+        
+        <!-- Messages -->
+        <div class="error-message" id="errorMessage"></div>
+        <div class="success-message" id="successMessage"></div>
+        <div class="loading" id="loading">
+          <div class="spinner"></div>
+          <p>Setting up your workspace...</p>
+        </div>
+      </form>
+    </div>
+    
+    <script>
+      // Handle form submission
+      document.getElementById('setupForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Get form values
+        const config = {
+          tutorName: document.getElementById('tutorName').value.trim(),
+          tutorEmail: document.getElementById('tutorEmail').value.trim(),
+          companyName: document.getElementById('companyName').value.trim() || 'Smart College',
+          companyUrl: document.getElementById('companyUrl').value.trim() || 'https://www.smartcollege.com'
+        };
+        
+        // Add Acuity ID if enterprise
+        <? if (isEnterprise) { ?>
+        const acuityId = document.getElementById('acuityUserId').value.trim();
+        if (acuityId) {
+          config.acuityUserId = acuityId;
+        }
+        <? } ?>
+        
+        // Validate required fields
+        if (!config.tutorName || !config.tutorEmail) {
+          showError('Please fill in all required fields');
+          return;
+        }
+        
+        // Validate email format
+        if (!isValidEmail(config.tutorEmail)) {
+          showError('Please enter a valid email address');
+          return;
+        }
+        
+        // Show loading
+        showLoading();
+        
+        // Save configuration
+        google.script.run
+          .withSuccessHandler(handleSuccess)
+          .withFailureHandler(handleError)
+          .saveInitialSetup(config);
+      });
+      
+      // Skip setup
+      function skipSetup() {
+        if (confirm('Are you sure you want to skip setup? You can complete it later from the Settings menu.')) {
+          google.script.host.close();
+        }
+      }
+      
+      // Handle success
+      function handleSuccess() {
+        hideLoading();
+        showSuccess('Setup complete! Refreshing menu...');
+        setTimeout(() => {
+          google.script.run
+            .withSuccessHandler(() => {
+              google.script.host.close();
+            })
+            .refreshMenu();
+        }, 1500);
+      }
+      
+      // Handle error
+      function handleError(error) {
+        hideLoading();
+        showError(error.message || 'Setup failed. Please try again.');
+      }
+      
+      // Email validation
+      function isValidEmail(email) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+      }
+      
+      // UI helpers
+      function showError(message) {
+        const errorDiv = document.getElementById('errorMessage');
+        errorDiv.textContent = message;
+        errorDiv.style.display = 'block';
+        setTimeout(() => {
+          errorDiv.style.display = 'none';
+        }, 5000);
+      }
+      
+      function showSuccess(message) {
+        const successDiv = document.getElementById('successMessage');
+        successDiv.textContent = message;
+        successDiv.style.display = 'block';
+      }
+      
+      function showLoading() {
+        document.getElementById('loading').style.display = 'block';
+        document.querySelector('.button-group').style.display = 'none';
+      }
+      
+      function hideLoading() {
+        document.getElementById('loading').style.display = 'none';
+        document.querySelector('.button-group').style.display = 'flex';
+      }
+    </script>
+  </body>
+</html>

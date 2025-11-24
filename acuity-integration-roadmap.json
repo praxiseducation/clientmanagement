@@ -1,0 +1,520 @@
+{
+  "project": {
+    "name": "Acuity Scheduling API Integration",
+    "version": "Enterprise Beta 2",
+    "description": "Integrate Acuity Scheduling API to automatically populate session dates and next appointments in Quick Notes and Session Recaps",
+    "created": "2025-01-11",
+    "status": "planned",
+    "priority": "high"
+  },
+  "overview": {
+    "goals": [
+      "Connect user accounts to individual Acuity User IDs",
+      "Replace current date with actual appointment date in email subject lines",
+      "Auto-populate next session information in session recaps",
+      "Provide appointment selection interface in Quick Notes/Recap dialogs",
+      "Maintain graceful fallbacks for missing or altered data"
+    ],
+    "benefits": [
+      "Eliminate manual date entry and potential errors",
+      "Provide accurate scheduling information to parents",
+      "Streamline session recap workflow",
+      "Improve professional appearance of communications",
+      "Better tracking of appointment sequences"
+    ]
+  },
+  "technical_architecture": {
+    "authentication": {
+      "method": "TBD - Need confirmation from user",
+      "options": [
+        {
+          "type": "shared_api_key",
+          "description": "One API key for all users + individual User IDs",
+          "format": "Authorization: Basic base64(userId:sharedApiKey)"
+        },
+        {
+          "type": "individual_api_keys", 
+          "description": "Each user has their own API key",
+          "format": "Authorization: Basic base64(userApiKey:password)"
+        },
+        {
+          "type": "oauth",
+          "description": "OAuth 2.0 authentication flow",
+          "format": "Authorization: Bearer {access_token}"
+        }
+      ]
+    },
+    "data_storage": {
+      "user_acuity_id": {
+        "location": "PropertiesService.getUserProperties()",
+        "key": "acuityUserId",
+        "type": "string",
+        "description": "Individual user's Acuity User ID"
+      },
+      "shared_api_key": {
+        "location": "PropertiesService.getScriptProperties()",
+        "key": "acuityApiKey",
+        "type": "string",
+        "description": "Shared API key (if applicable)",
+        "security": "encrypted"
+      },
+      "appointment_cache": {
+        "location": "CacheService.getScriptCache()",
+        "duration": "15 minutes",
+        "description": "Cache recent appointments to reduce API calls"
+      }
+    },
+    "api_endpoints": {
+      "base_url": "https://acuityscheduling.com/api/v1/",
+      "appointments": {
+        "endpoint": "appointments",
+        "methods": ["GET"],
+        "params": ["minDate", "maxDate", "calendarID", "appointmentTypeID"],
+        "description": "Retrieve appointments for date range"
+      },
+      "clients": {
+        "endpoint": "clients", 
+        "methods": ["GET"],
+        "params": ["search"],
+        "description": "Search for client information"
+      },
+      "appointment_types": {
+        "endpoint": "appointment-types",
+        "methods": ["GET"],
+        "description": "Get available appointment types"
+      }
+    }
+  },
+  "implementation_phases": {
+    "phase_1": {
+      "name": "Setup & Authentication",
+      "duration": "3-5 days",
+      "tasks": [
+        {
+          "id": "P1T1",
+          "name": "Add Acuity User ID field to initial setup dialog",
+          "description": "Extend showInitialSetup() to collect user's Acuity User ID",
+          "files": ["clientmanager.gs"],
+          "functions": ["showInitialSetup", "saveUserConfig"],
+          "priority": "high"
+        },
+        {
+          "id": "P1T2", 
+          "name": "Implement Acuity API authentication",
+          "description": "Create authentication headers and test API connectivity",
+          "files": ["clientmanager.gs"],
+          "functions": ["getAcuityHeaders", "testAcuityConnection"],
+          "priority": "high"
+        },
+        {
+          "id": "P1T3",
+          "name": "Create user Acuity ID storage functions",
+          "description": "Functions to save/retrieve user's Acuity User ID",
+          "files": ["clientmanager.gs"],
+          "functions": ["saveUserAcuityId", "getUserAcuityId"],
+          "priority": "medium"
+        },
+        {
+          "id": "P1T4",
+          "name": "Implement basic error handling",
+          "description": "Handle API failures, rate limits, network errors",
+          "files": ["clientmanager.gs"],
+          "functions": ["handleAcuityError", "isAcuityAvailable"],
+          "priority": "medium"
+        }
+      ]
+    },
+    "phase_2": {
+      "name": "Core Data Integration",
+      "duration": "5-7 days", 
+      "tasks": [
+        {
+          "id": "P2T1",
+          "name": "Implement appointment fetching",
+          "description": "Get recent appointments from Acuity API with date filtering",
+          "files": ["clientmanager.gs"],
+          "functions": ["getRecentAppointments", "fetchAppointmentsFromAcuity"],
+          "priority": "high"
+        },
+        {
+          "id": "P2T2",
+          "name": "Create appointment selection UI",
+          "description": "Dropdown in Quick Notes showing recent appointments",
+          "files": ["clientmanager.gs"],
+          "functions": ["showAppointmentPicker", "renderAppointmentDropdown"],
+          "priority": "high"
+        },
+        {
+          "id": "P2T3",
+          "name": "Implement client name matching",
+          "description": "Match client names between Acuity and Google Sheets",
+          "files": ["clientmanager.gs"],
+          "functions": ["matchClientNames", "fuzzyMatchClients"],
+          "priority": "medium"
+        },
+        {
+          "id": "P2T4",
+          "name": "Add appointment caching",
+          "description": "Cache appointment data to reduce API calls",
+          "files": ["clientmanager.gs"],
+          "functions": ["cacheAppointments", "getCachedAppointments"],
+          "priority": "medium"
+        }
+      ]
+    },
+    "phase_3": {
+      "name": "Email Integration",
+      "duration": "4-6 days",
+      "tasks": [
+        {
+          "id": "P3T1",
+          "name": "Update email subject line generation",
+          "description": "Replace current date with selected appointment date",
+          "files": ["clientmanager.gs"],
+          "functions": ["generateEmailPreview", "buildEmailBody"],
+          "priority": "high"
+        },
+        {
+          "id": "P3T2",
+          "name": "Implement next appointment detection",
+          "description": "Find and populate next scheduled session for client",
+          "files": ["clientmanager.gs"],
+          "functions": ["getNextAppointment", "findNextSessionForClient"],
+          "priority": "high"
+        },
+        {
+          "id": "P3T3",
+          "name": "Update session recap template",
+          "description": "Add next session field with Acuity data or 'Not Yet Scheduled'",
+          "files": ["clientmanager.gs"],
+          "functions": ["getSessionRecapBody", "populateNextSessionData"],
+          "priority": "medium"
+        },
+        {
+          "id": "P3T4",
+          "name": "Implement graceful fallbacks",
+          "description": "Handle cases where Acuity data is unavailable",
+          "files": ["clientmanager.gs"],
+          "functions": ["getDefaultDateInfo", "handleMissingAppointmentData"],
+          "priority": "medium"
+        }
+      ]
+    },
+    "phase_4": {
+      "name": "UI/UX Enhancements",
+      "duration": "3-4 days",
+      "tasks": [
+        {
+          "id": "P4T1",
+          "name": "Enhance Quick Notes header",
+          "description": "Add appointment selector to Quick Notes interface",
+          "files": ["clientmanager.gs"],
+          "ui_locations": ["Quick Notes View header"],
+          "priority": "medium"
+        },
+        {
+          "id": "P4T2",
+          "name": "Update Session Recap dialog",
+          "description": "Pre-populate appointment data in recap dialog",
+          "files": ["clientmanager.gs"],
+          "functions": ["showRecapDialog", "getSessionRecapBody"],
+          "priority": "medium"
+        },
+        {
+          "id": "P4T3",
+          "name": "Maintain fallback buttons",
+          "description": "Keep 'Not Yet Scheduled' and 'Open Acuity' buttons",
+          "files": ["clientmanager.gs"],
+          "ui_locations": ["Session Recap dialog"],
+          "priority": "low"
+        },
+        {
+          "id": "P4T4",
+          "name": "Add loading states and feedback",
+          "description": "Show loading indicators when fetching Acuity data",
+          "files": ["clientmanager.gs"],
+          "priority": "low"
+        }
+      ]
+    },
+    "phase_5": {
+      "name": "Testing & Polish",
+      "duration": "3-4 days",
+      "tasks": [
+        {
+          "id": "P5T1",
+          "name": "Comprehensive error handling",
+          "description": "Handle all edge cases and API failures gracefully",
+          "files": ["clientmanager.gs"],
+          "priority": "high"
+        },
+        {
+          "id": "P5T2",
+          "name": "Performance optimization", 
+          "description": "Optimize API calls, caching, and UI responsiveness",
+          "files": ["clientmanager.gs"],
+          "priority": "medium"
+        },
+        {
+          "id": "P5T3",
+          "name": "User acceptance testing",
+          "description": "Test with real Acuity data and user workflows",
+          "priority": "high"
+        },
+        {
+          "id": "P5T4",
+          "name": "Documentation and help text",
+          "description": "Add user guidance for Acuity integration features",
+          "priority": "low"
+        }
+      ]
+    }
+  },
+  "data_requirements": {
+    "from_user": {
+      "api_documentation": {
+        "description": "Complete Acuity Scheduling API documentation",
+        "priority": "critical",
+        "includes": [
+          "Authentication methods and examples",
+          "Endpoint specifications",
+          "Request/response formats", 
+          "Rate limiting information",
+          "Error response formats"
+        ]
+      },
+      "authentication_details": {
+        "description": "Specific authentication structure used by their Acuity account",
+        "priority": "critical",
+        "questions": [
+          "Is there a shared API key for all users?",
+          "How is individual user identification handled?",
+          "What is the exact authentication header format?"
+        ]
+      },
+      "sample_data": {
+        "description": "Example API responses for testing and development",
+        "priority": "high",
+        "includes": [
+          "Sample appointment objects",
+          "Sample client/customer objects",
+          "Example error responses",
+          "Different appointment types"
+        ]
+      },
+      "test_credentials": {
+        "description": "Test Acuity account access for development",
+        "priority": "high",
+        "includes": [
+          "Test User ID",
+          "API key or credentials",
+          "Sample appointment data"
+        ]
+      }
+    }
+  },
+  "integration_points": {
+    "existing_functions": {
+      "showInitialSetup": {
+        "changes": ["Add Acuity User ID input field"],
+        "impact": "low"
+      },
+      "saveUserConfig": {
+        "changes": ["Store Acuity User ID in user properties"],
+        "impact": "low"
+      },
+      "generateEmailPreview": {
+        "changes": ["Use appointment date instead of current date"],
+        "impact": "medium"
+      },
+      "buildEmailBody": {
+        "changes": ["Include next appointment information"],
+        "impact": "medium" 
+      },
+      "getSessionRecapBody": {
+        "changes": ["Add next session field with Acuity data"],
+        "impact": "medium"
+      },
+      "showRecapDialog": {
+        "changes": ["Pre-populate with appointment data"],
+        "impact": "medium"
+      }
+    },
+    "new_functions": {
+      "acuity_api": [
+        "getAcuityHeaders(userAcuityId)",
+        "testAcuityConnection(userAcuityId)",
+        "getRecentAppointments(userAcuityId, dateRange)",
+        "getNextAppointment(userAcuityId, clientName, afterDate)",
+        "searchAcuityClients(userAcuityId, searchTerm)"
+      ],
+      "user_management": [
+        "saveUserAcuityId(acuityUserId)",
+        "getUserAcuityId()",
+        "validateAcuityUserId(userId)"
+      ],
+      "appointment_handling": [
+        "showAppointmentPicker(appointments)",
+        "selectAppointment(appointmentId)",
+        "matchClientNames(acuityClient, sheetsClient)",
+        "cacheAppointments(appointments)",
+        "getCachedAppointments(userAcuityId)"
+      ],
+      "error_handling": [
+        "handleAcuityError(error)",
+        "isAcuityAvailable()",
+        "getDefaultDateInfo()",
+        "handleMissingAppointmentData()"
+      ]
+    }
+  },
+  "ui_mockups": {
+    "quick_notes_header": {
+      "description": "Add appointment selector dropdown below client name",
+      "elements": [
+        "Dropdown: 'Select Appointment'",
+        "Options: 'Client Name - Date - Time'",
+        "Default: 'Today's Session'"
+      ]
+    },
+    "session_recap_dialog": {
+      "description": "Pre-populate appointment data in form",
+      "elements": [
+        "Session Date: Auto-filled from appointment",
+        "Next Session: Auto-filled or 'Not Yet Scheduled'",
+        "Keep existing fallback buttons"
+      ]
+    },
+    "initial_setup": {
+      "description": "Add Acuity User ID field to setup dialog",
+      "elements": [
+        "Input field: 'Acuity User ID'",
+        "Help text: 'Found in your Acuity account settings'",
+        "Validation: Test connection button"
+      ]
+    }
+  },
+  "testing_scenarios": {
+    "happy_path": [
+      "User has valid Acuity User ID",
+      "Appointments exist for client",
+      "Next appointment is scheduled",
+      "API responds quickly"
+    ],
+    "edge_cases": [
+      "No appointments found for client",
+      "Multiple appointments same day",
+      "Acuity API is down",
+      "Invalid or expired User ID",
+      "Rate limiting triggered",
+      "Client name doesn't match exactly",
+      "No next appointment scheduled"
+    ],
+    "error_conditions": [
+      "Network connectivity issues",
+      "Authentication failures", 
+      "Malformed API responses",
+      "Missing required data fields"
+    ]
+  },
+  "performance_considerations": {
+    "api_optimization": [
+      "Cache appointment data for 15 minutes",
+      "Batch API calls when possible",
+      "Only fetch necessary date ranges",
+      "Implement request debouncing"
+    ],
+    "ui_responsiveness": [
+      "Show loading states during API calls",
+      "Don't block UI while fetching data",
+      "Provide instant fallbacks for missing data",
+      "Pre-load data when possible"
+    ],
+    "rate_limiting": [
+      "Respect Acuity API rate limits",
+      "Implement exponential backoff on failures",
+      "Cache data to minimize API calls",
+      "Show user-friendly rate limit messages"
+    ]
+  },
+  "security_considerations": {
+    "data_protection": [
+      "Store API keys securely in Script Properties",
+      "Never log sensitive authentication data",
+      "Validate all user inputs",
+      "Sanitize data from external API"
+    ],
+    "access_control": [
+      "Each user only accesses their own Acuity data",
+      "Validate User ID ownership",
+      "Implement proper error messages without data leaks"
+    ]
+  },
+  "rollback_plan": {
+    "description": "If Acuity integration causes issues, maintain backward compatibility",
+    "steps": [
+      "Feature flag to disable Acuity integration",
+      "Graceful degradation to current date behavior", 
+      "Keep all existing fallback options",
+      "Ensure core functionality works without Acuity"
+    ]
+  },
+  "success_metrics": {
+    "user_experience": [
+      "Reduced manual date entry errors",
+      "Faster session recap completion", 
+      "Improved parent satisfaction with scheduling info",
+      "Seamless workflow integration"
+    ],
+    "technical_metrics": [
+      "API response times under 2 seconds",
+      "95%+ successful API calls",
+      "Cache hit rate above 60%",
+      "Zero critical errors in production"
+    ]
+  },
+  "future_enhancements": {
+    "potential_features": [
+      "Automatic session duration tracking",
+      "Integration with Acuity Forms data",
+      "Bulk appointment processing",
+      "Calendar view of upcoming sessions",
+      "Client preference synchronization",
+      "Automated reminder capabilities"
+    ]
+  },
+  "deployment_checklist": {
+    "pre_deployment": [
+      "Complete integration testing with real Acuity data",
+      "Verify all fallback scenarios work correctly",
+      "Test error handling with various failure modes",
+      "Validate security and data protection measures",
+      "Create user documentation and help text",
+      "Prepare rollback procedures"
+    ],
+    "deployment": [
+      "Deploy to staging environment first",
+      "Test with subset of users",
+      "Monitor API usage and performance",
+      "Gradually roll out to all enterprise users",
+      "Monitor error rates and user feedback"
+    ],
+    "post_deployment": [
+      "Monitor API usage patterns",
+      "Collect user feedback on workflow improvements", 
+      "Track performance metrics",
+      "Plan future enhancements based on usage data"
+    ]
+  },
+  "notes": {
+    "created_by": "Claude Code Assistant",
+    "last_updated": "2025-01-11",
+    "status": "Awaiting user input on Acuity API details",
+    "next_steps": [
+      "User to provide Acuity API documentation",
+      "Confirm authentication method and structure",
+      "Share sample API response data",
+      "Provide test credentials for development"
+    ]
+  }
+}

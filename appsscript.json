@@ -1,0 +1,43 @@
+{
+  "timeZone": "America/New_York",
+  "dependencies": {
+    "enabledAdvancedServices": []
+  },
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/script.container.ui",
+    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/userinfo.email"
+  ],
+  "addOns": {
+    "common": {
+      "name": "Client Manager",
+      "logoUrl": "https://www.gstatic.com/images/branding/product/1x/apps_script_48dp.png",
+      "layoutProperties": {
+        "primaryColor": "#003366",
+        "secondaryColor": "#1a73e8"
+      },
+      "homepageTrigger": {
+        "runFunction": "onHomepage",
+        "enabled": true
+      },
+      "universalActions": [
+        {
+          "label": "Refresh",
+          "runFunction": "refreshCard"
+        }
+      ]
+    },
+    "sheets": {
+      "homepageTrigger": {
+        "runFunction": "onSheetsHomepage",
+        "enabled": true
+      },
+      "onFileScopeGrantedTrigger": {
+        "runFunction": "onFileScopeGranted"
+      }
+    }
+  }
+}

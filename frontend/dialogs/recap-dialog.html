@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <?!= include('frontend/css/recap-dialog.css'); ?>
+  </head>
+  <body>
+    <div class="recap-container">
+      <h2 class="dialog-title">Session Recap for <?= clientData.name ?></h2>
+      <p class="dialog-subtitle"><?= currentDate ?></p>
+      
+      <form id="recapForm">
+        <!-- Email Recipients -->
+        <div class="form-section">
+          <div class="section-header">
+            <span class="section-icon">✉️</span>
+            <span class="section-title">Email Recipients</span>
+          </div>
+          
+          <div class="form-group">
+            <label for="parentEmail">Parent Email <span class="required">*</span></label>
+            <input type="email" id="parentEmail" value="<?= clientData.parentEmail || '' ?>" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="additionalEmails">Additional Recipients <span class="optional">(optional)</span></label>
+            <input type="text" id="additionalEmails" value="<?= clientData.emailAddressees || '' ?>" 
+                   placeholder="Separate multiple emails with commas">
+            <div class="help-text">CC additional recipients (comma-separated)</div>
+          </div>
+        </div>
+        
+        <!-- Session Details -->
+        <div class="form-section">
+          <div class="section-header">
+            <span class="section-icon">📝</span>
+            <span class="section-title">Session Details</span>
+          </div>
+          
+          <div class="form-group">
+            <label for="focusSkill">Today's Focus</label>
+            <input type="text" id="focusSkill" value="<?= quickNotes.wins || '' ?>" 
+                   placeholder="Main topic or skill covered">
+          </div>
+          
+          <div class="form-group">
+            <label for="wins">Today's Win</label>
+            <textarea id="wins" rows="3" placeholder="What went well today?"><?= quickNotes.wins || '' ?></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label for="skillsMastered">Skills Mastered</label>
+            <textarea id="skillsMastered" rows="2" placeholder="Skills the student has mastered"><?= quickNotes.skillsMastered || '' ?></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label for="skillsPracticed">Skills Practiced</label>
+            <textarea id="skillsPracticed" rows="2" placeholder="Skills practiced during session"><?= quickNotes.skillsPracticed || '' ?></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label for="skillsIntroduced">Skills Introduced</label>
+            <textarea id="skillsIntroduced" rows="2" placeholder="New concepts introduced"><?= quickNotes.skillsIntroduced || '' ?></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label for="struggles">Areas for Improvement</label>
+            <textarea id="struggles" rows="2" placeholder="Challenges or areas needing work"><?= quickNotes.struggles || '' ?></textarea>
+          </div>
+        </div>
+        
+        <!-- Homework & Next Session -->
+        <div class="form-section">
+          <div class="section-header">
+            <span class="section-icon">📚</span>
+            <span class="section-title">Follow-up</span>
+          </div>
+          
+          <div class="form-group">
+            <label for="homework">Homework/Practice</label>
+            <textarea id="homework" rows="3" placeholder="Assignments or practice for next session"><?= quickNotes.parent || '' ?></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label for="nextSession">Next Session Date</label>
+            <div class="input-group">
+              <input type="text" id="nextSession" value="<?= quickNotes.next || 'Not Yet Scheduled' ?>" 
+                     placeholder="e.g., Next Tuesday at 4pm">
+              <button type="button" class="btn-link" onclick="openAcuity()">Open Acuity</button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div class="button-group">
+          <button type="button" class="btn-secondary" onclick="previewEmail()">Preview</button>
+          <button type="button" class="btn-secondary" onclick="saveRecap()">Save Draft</button>
+          <button type="submit" class="btn-primary">Send Recap</button>
+        </div>
+        
+        <!-- Status Messages -->
+        <div id="statusMessage" class="status-message"></div>
+        <div id="loadingSpinner" class="loading-spinner">
+          <div class="spinner"></div>
+          <span>Sending recap...</span>
+        </div>
+      </form>
+    </div>
+    
+    <?!= include('frontend/js/recap-dialog.js'); ?>
+  </body>
+</html>

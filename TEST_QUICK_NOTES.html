@@ -1,0 +1,40 @@
+<!-- Quick Notes View - Test Version -->
+<div class="quick-notes-container">
+  <!-- Back Button -->
+  <button class="back-button" onclick="switchToControlPanel()">
+    ← Back to Control Panel
+  </button>
+  
+  <!-- Client Name -->
+  <h2 id="quickNotesClientName" class="client-name">Loading...</h2>
+  
+  <!-- Test Button -->
+  <button onclick="saveQuickNotes()">TEST SAVE BUTTON</button>
+  
+  <!-- Action Buttons -->
+  <div class="button-grid">
+    <button class="action-button btn-primary" onclick="saveQuickNotes()">
+      Save Notes
+    </button>
+    <button class="action-button btn-secondary" onclick="clearQuickNotes()">
+      Clear Notes
+    </button>
+  </div>
+</div>
+
+<script>
+// Test functions - inline
+function saveQuickNotes() {
+  alert('saveQuickNotes function called successfully!');
+  console.log('saveQuickNotes working');
+}
+
+function clearQuickNotes() {
+  alert('clearQuickNotes function called successfully!');
+  console.log('clearQuickNotes working');
+}
+
+function switchToControlPanel() {
+  alert('switchToControlPanel function called!');
+}
+</script>

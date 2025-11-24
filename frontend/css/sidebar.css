@@ -1,0 +1,366 @@
+<style>
+  body {
+    font-family: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    margin: 0;
+    padding: 0;
+    font-size: 14px;
+    box-sizing: border-box;
+    background: white; /* Ensure body has solid background */
+    overflow: hidden; /* Prevent scrollbars during transitions */
+  }
+
+  /* Main container to control view transitions */
+  .sidebar-container {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    background: white;
+    overflow: hidden;
+  }
+
+  /* View management - Fixed animation issues */
+  .view {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    padding: 15px;
+    background: white; /* Solid white background */
+    transform: translateX(100%);
+    transition: transform 0.25s cubic-bezier(0.4, 0.0, 0.2, 1);
+    will-change: transform;
+    overflow-y: auto;
+    overflow-x: hidden; /* Prevent horizontal scroll */
+    box-sizing: border-box;
+    z-index: 1;
+    opacity: 0; /* Start hidden */
+    transition: transform 0.25s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.15s ease;
+  }
+
+  .view.active {
+    transform: translateX(0);
+    z-index: 10;
+    opacity: 1; /* Fade in when active */
+  }
+
+  /* Ensure first view (control) starts visible */
+  .view:first-child {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  
+  /* User info section (Enterprise) */
+  .user-info {
+    background: linear-gradient(135deg, #003366 0%, #1a73e8 100%);
+    color: white;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-size: 13px;
+  }
+  
+  .user-name {
+    font-weight: 600;
+    margin-bottom: 4px;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
+    background: rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+  }
+
+  .user-name:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .user-name:hover::after {
+    content: "✏️ Click to edit";
+    position: absolute;
+    top: -32px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: normal;
+    white-space: nowrap;
+    opacity: 0;
+    animation: tooltipFadeIn 0.3s ease forwards;
+    z-index: 1000;
+  }
+
+  @keyframes tooltipFadeIn {
+    to {
+      opacity: 1;
+    }
+  }
+
+  .user-icon {
+    font-size: 16px;
+    opacity: 0.8;
+  }
+  
+  .user-role {
+    opacity: 0.9;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  /* Search dropdown */
+  .search-container {
+    position: relative;
+    width: 100%;
+    margin-bottom: 15px;
+  }
+  
+  .search-bar {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #dadce0;
+    border-radius: 6px;
+    font-size: 14px;
+    box-sizing: border-box;
+  }
+  
+  .search-bar:focus {
+    outline: none;
+    border-color: #1a73e8;
+    box-shadow: 0 0 0 2px rgba(26,115,232,0.1);
+  }
+  
+  .search-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #dadce0;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  
+  .search-result {
+    padding: 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f3f4;
+  }
+  
+  .search-result:hover {
+    background: #f8f9fa;
+  }
+  
+  /* Current client section */
+  .current-client {
+    background: #e8f0fe;
+    border-left: 4px solid #003366;
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    font-size: 13px;
+  }
+  
+  .current-client-label {
+    font-weight: 500;
+    color: #003366;
+    margin-bottom: 4px;
+  }
+  
+  .current-client-name {
+    color: #202124;
+    font-weight: 600;
+  }
+  
+  .no-client {
+    color: #5f6368;
+    font-style: italic;
+  }
+  
+  /* Section styles */
+  .section {
+    margin-bottom: 25px;
+    background: white;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  
+  .section-title {
+    font-weight: 600;
+    color: #202124;
+    margin-bottom: 12px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .section-icon {
+    font-size: 16px;
+  }
+  
+  /* Button styles */
+  .menu-button {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 8px;
+    border: 1px solid #dadce0;
+    border-radius: 6px;
+    background: white;
+    color: #202124;
+    cursor: pointer;
+    font-family: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .menu-button:hover:not(:disabled) {
+    background: #f8f9fa;
+    border-color: #003366;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  
+  .menu-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .primary {
+    background: linear-gradient(135deg, #1a73e8 0%, #1557b0 100%);
+    color: white !important;
+    border: none;
+    text-align: center;
+    justify-content: center;
+  }
+  
+  .primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, #1557b0 0%, #0d47a1 100%);
+  }
+  
+  .admin-only {
+    background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%);
+    color: white !important;
+    border: none;
+  }
+  
+  .admin-only:hover:not(:disabled) {
+    background: linear-gradient(135deg, #b71c1c 0%, #8e24aa 100%);
+  }
+  
+  .icon {
+    font-size: 18px;
+    width: 24px;
+    text-align: center;
+  }
+  
+  /* Loading spinner */
+  .btn-loading {
+    position: relative;
+    pointer-events: none;
+    opacity: 0.8;
+  }
+  
+  .btn-loading::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    top: 50%;
+    right: 12px;
+    margin-top: -8px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  
+  /* Messages */
+  .message {
+    font-size: 13px;
+    margin-top: 10px;
+    padding: 12px;
+    border-radius: 6px;
+    display: none;
+    border-left: 4px solid;
+  }
+  
+  .error {
+    color: #d93025;
+    background: #fce8e6;
+    border-left-color: #d93025;
+  }
+  
+  .success {
+    color: #188038;
+    background: #e6f4ea;
+    border-left-color: #188038;
+  }
+  
+  /* Version info */
+  .version-info {
+    margin-top: 20px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    font-size: 11px;
+    color: #5f6368;
+    text-align: center;
+    border-top: 1px solid #e1e5e9;
+  }
+  
+  /* Connection status banner */
+  .connection-status {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: #fef7e0;
+    border-bottom: 1px solid #f9ab00;
+    padding: 10px 15px;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    z-index: 1000;
+    font-size: 13px;
+    color: #3c4043;
+  }
+  
+  .connection-status.show {
+    display: flex;
+  }
+  
+  .status-icon {
+    font-size: 16px;
+  }
+  
+  .status-message {
+    flex: 1;
+  }
+</style>

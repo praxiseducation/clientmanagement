@@ -2,9 +2,10 @@
 <html>
   <head>
     <base target="_top">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
       body {
-        font-family: 'Poppins', 'Google Sans', Arial, sans-serif;
+        font-family: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
         margin: 0;
         padding: 15px;
         font-size: 14px;
@@ -18,16 +19,438 @@
         border-radius: 8px;
         margin-bottom: 20px;
         font-size: 13px;
+        display: none;
+      }
+      
+      .user-info.show {
+        display: block;
       }
       
       .user-name {
         font-weight: 600;
         margin-bottom: 4px;
         cursor: pointer;
+        padding: 8px 12px;
+        border-radius: 6px;
+        transition: all 0.3s ease;
+        border: 1px solid transparent;
+        background: rgba(255, 255, 255, 0.1);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        position: relative;
+      }
+
+      .user-name:hover:not(.editing) {
+        background: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.3);
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      }
+
+      .user-name:hover:not(.editing)::after {
+        content: "✏️ Click to edit";
+        position: absolute;
+        top: -32px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: normal;
+        white-space: nowrap;
+        opacity: 0;
+        animation: tooltipFadeIn 0.3s ease forwards;
+        z-index: 1000;
+      }
+
+      @keyframes tooltipFadeIn {
+        to {
+          opacity: 1;
+        }
       }
       
-      .user-name:hover {
-        text-decoration: underline;
+      .user-icon {
+        font-size: 16px;
+        opacity: 0.8;
+      }
+
+      .user-name-text {
+        flex: 1;
+      }
+      
+      .user-name-input {
+        flex: 1;
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 4px;
+        padding: 4px 8px;
+        color: white;
+        font-weight: 600;
+        font-size: 13px;
+        font-family: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        display: none;
+      }
+      
+      .user-name-input:focus {
+        outline: none;
+        border-color: rgba(255, 255, 255, 0.8);
+        background: rgba(255, 255, 255, 0.3);
+      }
+      
+      .user-name-input::placeholder {
+        color: rgba(255, 255, 255, 0.7);
+      }
+      
+      .save-button {
+        background: rgba(255, 255, 255, 0.9);
+        color: #003366;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 6px;
+        padding: 6px 12px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 500;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        min-width: 64px;
+        height: 28px;
+        transition: all 0.3s ease;
+        font-family: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        position: relative;
+        flex-shrink: 0;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      }
+      
+      .save-button:hover:not(.loading):not(.success):not(.error) {
+        background: rgba(255, 255, 255, 1);
+        border-color: rgba(255, 255, 255, 0.8);
+        transform: translateY(-1px);
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      }
+      
+      .save-button.loading {
+        background: rgba(255, 255, 255, 0.7);
+        cursor: not-allowed;
+        pointer-events: none;
+        color: #5f6368;
+      }
+      
+      .save-button .save-spinner {
+        width: 12px;
+        height: 12px;
+        border: 2px solid rgba(95, 99, 104, 0.3);
+        border-top-color: #5f6368;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        display: none;
+      }
+      
+      .save-button.loading .save-spinner {
+        display: block;
+      }
+      
+      .save-button.loading .save-text {
+        display: none;
+      }
+      
+      .save-button.success {
+        background: rgba(76, 175, 80, 0.9);
+        color: white;
+        border-color: rgba(76, 175, 80, 1);
+        animation: successPulse 0.6s ease-out;
+      }
+      
+      .save-button.error {
+        background: rgba(244, 67, 54, 0.9);
+        color: white;
+        border-color: rgba(244, 67, 54, 1);
+        animation: errorShake 0.5s ease-out;
+      }
+      
+      @keyframes successPulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+      }
+      
+      @keyframes errorShake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-3px); }
+        75% { transform: translateX(3px); }
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      
+      /* View management */
+      .view { 
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100vh;
+        padding: 15px;
+        background: #f8f9fa;
+        transform: translateX(100%);
+        transition: transform 0.3s ease-out;
+        overflow-y: auto;
+        box-sizing: border-box;
+        z-index: 1;
+      }
+      .view.active { 
+        transform: translateX(0);
+        z-index: 10;
+      }
+      
+      /* View header */
+      .view-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 20px;
+        background: white;
+        border-bottom: 1px solid #dadce0;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+
+      .back-button {
+        background: white;
+        border: 1px solid #dadce0;
+        cursor: pointer;
+        font-size: 18px;
+        color: #202124;
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        border-radius: 6px;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        width: auto;
+        margin-bottom: 0;
+      }
+      
+      .back-button:hover {
+        background: #f8f9fa;
+        border-color: #003366;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+
+      .back-button:active {
+        transform: translateY(0);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      }
+      
+      .view-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #202124;
+        margin: 0;
+        font-weight: 600;
+        color: #202124;
+        margin: 0;
+      }
+      
+      /* Client list container */
+      .client-list-wrapper {
+        height: calc(100vh - 140px);
+        overflow-y: auto;
+        padding: 20px;
+        background: #f8f9fa;
+      }
+
+      /* Client list styles */
+      .client-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .client-item {
+        background: white;
+        border: 1px solid #dadce0;
+        border-radius: 6px;
+        padding: 12px 16px;
+        cursor: pointer;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 14px;
+        gap: 12px;
+      }
+      
+      .client-item:hover {
+        border-color: #003366;
+        background: #f8f9fa;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+
+      .client-item.current {
+        border-color: #003366;
+        background: #e8f0fe;
+        border-left: 3px solid #003366;
+        padding-left: 14px;
+      }
+
+      .client-icon {
+        font-size: 18px;
+        color: #5f6368;
+      }
+
+      .client-name-only {
+        color: #202124;
+        font-weight: 500;
+        flex: 1;
+      }
+
+      .client-list-search {
+        padding: 20px;
+        background: white;
+        border-bottom: 1px solid #dadce0;
+        position: sticky;
+        top: 60px;
+        z-index: 99;
+      }
+      
+      .client-info {
+        flex: 1;
+      }
+      
+      .client-name {
+        font-weight: 600;
+        color: #202124;
+        margin-bottom: 4px;
+      }
+      
+      .client-details {
+        font-size: 12px;
+        color: #5f6368;
+      }
+      
+      .client-status {
+        font-size: 12px;
+        padding: 4px 8px;
+        border-radius: 12px;
+        background: #e8f0fe;
+        color: #1a73e8;
+        white-space: nowrap;
+      }
+      
+      .client-status.current {
+        background: #e6f4ea;
+        color: #137333;
+      }
+      
+      /* Loading and empty states */
+      .loading-spinner {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 200px;
+        flex-direction: column;
+        gap: 16px;
+      }
+      
+      .spinner {
+        width: 32px;
+        height: 32px;
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #1a73e8;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      
+      .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: #5f6368;
+      }
+      
+      .empty-state-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+        opacity: 0.5;
+      }
+      
+      /* Connection status banner */
+      .connection-banner {
+        display: none;
+        background: #f44336;
+        color: white;
+        padding: 10px 15px;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        font-size: 13px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        animation: slideDown 0.3s ease-out;
+      }
+      
+      .connection-banner.show {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      
+      .connection-banner.reconnecting {
+        background: #ff9800;
+      }
+      
+      .connection-banner.connected {
+        background: #4caf50;
+      }
+      
+      @keyframes slideDown {
+        from {
+          transform: translateY(-100%);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+      
+      .connection-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      
+      .connection-icon {
+        animation: pulse 2s infinite;
+      }
+      
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+      
+      
+      /* Adjust body padding when banner is shown */
+      body.has-banner {
+        padding-top: 55px;
+      }
+      
+      /* Disable buttons when offline */
+      button.offline-disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        pointer-events: none;
       }
       
       .user-role {
@@ -38,17 +461,17 @@
       }
       
       .current-client {
-        background: white;
+        background: #e8f0fe;
+        border-left: 4px solid #003366;
         padding: 12px;
         border-radius: 6px;
         margin-bottom: 20px;
         font-size: 13px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
       }
       
       .current-client-label {
         font-weight: 500;
-        color: #5f6368;
+        color: #003366;
         margin-bottom: 4px;
       }
       
@@ -99,18 +522,14 @@
         display: flex;
         align-items: center;
         gap: 10px;
+        font-family: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       }
       
       button:hover:not(:disabled) {
         background: #f8f9fa;
-        border-color: #1a73e8;
+        border-color: #003366;
         transform: translateY(-1px);
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      }
-      
-      button:active {
-        transform: translateY(0);
-        box-shadow: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
       }
       
       button:disabled {
@@ -140,10 +559,21 @@
         background: linear-gradient(135deg, #b71c1c 0%, #8e24aa 100%);
       }
       
+      .icon {
+        font-size: 18px;
+        width: 24px;
+        text-align: center;
+      }
+      
+      .search-container {
+        position: relative;
+        width: 100%;
+        margin-bottom: 15px;
+      }
+      
       .search-bar {
         width: 100%;
         padding: 10px;
-        margin-bottom: 12px;
         border: 1px solid #dadce0;
         border-radius: 6px;
         font-size: 14px;
@@ -156,73 +586,78 @@
         box-shadow: 0 0 0 2px rgba(26,115,232,0.1);
       }
       
-      .icon {
-        font-size: 16px;
-        width: 20px;
-        text-align: center;
-      }
-      
-      .loading {
+      .search-dropdown {
         display: none;
-        text-align: center;
-        padding: 20px;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
         background: white;
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        border: 1px solid #dadce0;
+        border-top: none;
+        border-radius: 0 0 6px 6px;
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 100;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
       }
       
-      .spinner {
-        border: 3px solid #f3f3f3;
-        border-top: 3px solid #1a73e8;
-        border-radius: 50%;
-        width: 30px;
-        height: 30px;
-        animation: spin 1s linear infinite;
-        margin: 0 auto;
+      .search-result {
+        padding: 10px;
+        cursor: pointer;
+        border-bottom: 1px solid #f1f3f4;
       }
       
-      @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
+      .search-result:hover {
+        background: #f8f9fa;
       }
       
-      .message {
-        font-size: 13px;
-        margin-top: 10px;
-        padding: 12px;
-        border-radius: 6px;
+      .admin-section {
         display: none;
-        border-left: 4px solid;
       }
       
-      .error {
-        color: #d93025;
-        background: #fce8e6;
-        border-left-color: #d93025;
+      .admin-section.show {
+        display: block;
       }
       
-      .success {
-        color: #188038;
-        background: #e6f4ea;
-        border-left-color: #188038;
-      }
-      
-      .warning {
-        color: #ea8600;
-        background: #fef7e0;
-        border-left-color: #ea8600;
+      .version-info {
+        margin-top: 20px;
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 6px;
+        font-size: 11px;
+        color: #5f6368;
+        text-align: center;
+        border-top: 1px solid #e1e5e9;
       }
     </style>
   </head>
   <body>
-    <!-- User Information -->
-    <div class="user-info" id="userInfo">
-      <div class="user-name" id="userName" ondblclick="editUserName()" title="Double-click to edit">Loading...</div>
-      <div class="user-role" id="userRole"></div>
+    <!-- Connection Status Banner -->
+    <div id="connectionBanner" class="connection-banner">
+      <div class="connection-status">
+        <span class="connection-icon" id="connectionIcon">⚠️</span>
+        <span id="connectionMessage">Connection lost. Some features may be unavailable.</span>
+      </div>
     </div>
     
+    <!-- Main Control Panel View -->
+    <div id="controlView" class="view active">
+      <!-- User Information (Enterprise) -->
+      <div id="userInfo" class="user-info">
+        <div class="user-name" id="userName" onclick="editUserName()" title="Click to edit">
+          <span class="user-name-text" id="userNameText">Loading...</span>
+          <input type="text" class="user-name-input" id="userNameInput" placeholder="Enter your name">
+          <button class="save-button" id="saveNameButton" onclick="saveUserName()">
+            <span class="save-text" id="saveButtonText">Save</span>
+            <div class="save-spinner"></div>
+          </button>
+        </div>
+        <div class="user-role" id="userRole">tutor</div>
+      </div>
+    
     <!-- Current Client -->
-    <div class="current-client" id="currentClient">
+    <div class="current-client">
       <div class="current-client-label">Current Client:</div>
       <div id="clientName" class="no-client">Loading...</div>
     </div>
@@ -230,34 +665,43 @@
     <!-- Client Management Section -->
     <div class="section">
       <div class="section-title">
-        <span class="section-icon">👥</span>
         Client Management
       </div>
-      <div style="position: relative;">
-        <input type="text" class="search-bar" id="clientSearchBar" placeholder="Search for a client..." onkeyup="searchClients(this.value)" onfocus="showSearchDropdown()" onblur="hideSearchDropdown()">
-        <div id="searchDropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #dadce0; border-top: none; border-radius: 0 0 6px 6px; max-height: 200px; overflow-y: auto; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></div>
+      
+      <!-- Enhanced Search Bar -->
+      <div class="search-container">
+        <input type="text" class="search-bar" id="clientSearchBar" 
+          placeholder="Search for a client..." 
+          onkeyup="searchClients(this.value)" 
+          onfocus="showSearchDropdown()" 
+          onblur="hideSearchDropdown()">
+        <div id="searchDropdown" class="search-dropdown"></div>
       </div>
-      <button class="primary" onclick="runSecureFunction('createClientSheetSecure', null, event)">
+      
+      <button class="primary" onclick="runFunction('createClientSheetSecure', this)">
         <span class="icon">➕</span>
         Add New Client
       </button>
-      <button onclick="runFunction('findClient', event)">
+      <button onclick="showClientList()">
         <span class="icon">📋</span>
         View All Clients
+      </button>
+      <button id="updateClientBtn" onclick="openUpdateClientDialog()" style="display: none;">
+        <span class="icon">⚙️</span>
+        Update Client Info
       </button>
     </div>
     
     <!-- Session Management Section -->
     <div class="section">
       <div class="section-title">
-        <span class="section-icon">📝</span>
         Session Management
       </div>
-      <button id="quickNotesBtn" onclick="runFunction('openQuickNotes')" disabled>
+      <button id="quickNotesBtn" onclick="switchToQuickNotes()" disabled>
         <span class="icon">📝</span>
         Quick Notes
       </button>
-      <button id="recapBtn" onclick="runSecureFunction('sendEmailSecure')" disabled>
+      <button id="recapBtn" onclick="runFunction('sendEmailSecure', this)" disabled>
         <span class="icon">✉️</span>
         Send Session Recap
       </button>
@@ -266,7 +710,6 @@
     <!-- External Tools Section -->
     <div class="section">
       <div class="section-title">
-        <span class="section-icon">🔗</span>
         External Tools
       </div>
       <button onclick="window.open('https://secure.acuityscheduling.com/admin/clients', '_blank')">
@@ -275,73 +718,335 @@
       </button>
     </div>
     
-    <!-- Admin Functions (shown only for admins) -->
-    <div class="section" id="adminSection" style="display: none;">
+    <!-- Admin Section (Enterprise) -->
+    <div id="adminSection" class="section admin-section">
       <div class="section-title">
-        <span class="section-icon">⚙️</span>
         Administration
       </div>
-      <button class="admin-only" onclick="runFunction('showEnterpriseAdminDashboard')">
+      <button class="admin-only" onclick="runFunction('showEnterpriseAdminDashboard', this)">
         <span class="icon">🏢</span>
         Admin Dashboard
       </button>
-      <button class="admin-only" onclick="runFunction('showOrganizationDashboard')">
+      <button class="admin-only" onclick="runFunction('showOrganizationDashboard', this)">
         <span class="icon">🏗️</span>
         Organization Dashboard
       </button>
-      <button onclick="runFunction('runSystemMaintenance')">
+      <button onclick="runFunction('runSystemMaintenance', this)">
         <span class="icon">🔧</span>
         System Maintenance
       </button>
-      <button onclick="runFunction('generateComplianceReportDialog')">
+      <button onclick="runFunction('generateComplianceReportDialog', this)">
         <span class="icon">📋</span>
         Compliance Report
       </button>
     </div>
     
-    <!-- Loading State -->
-    <div class="loading" id="loading">
-      <div class="spinner"></div>
-      <p>Processing...</p>
-    </div>
-    
-    <!-- Messages -->
-    <div class="message error" id="error"></div>
-    <div class="message success" id="success"></div>
-    <div class="message warning" id="warning"></div>
-    
-    <!-- Version Info -->
-    <div style="margin-top: 20px; padding: 10px; background: #f8f9fa; border-radius: 6px; font-size: 11px; color: #5f6368; text-align: center; border-top: 1px solid #e1e5e9;">
-      <div id="versionInfo" style="line-height: 1.4;">
-        <div>Enterprise Sidebar v3.0.1 (20250108)</div>
-        <div id="scriptVersion">Loading script version...</div>
+      <!-- Version Info -->
+      <div class="version-info">
+        <div id="versionDisplay">Enterprise Sidebar Loading...</div>
       </div>
     </div>
     
-    <script>
-      let currentUser = null;
+    <!-- Client List View -->
+    <div id="clientListView" class="view">
+      <div class="view-header">
+        <button class="back-button" onclick="switchToControlPanel()" title="Back to Home">
+          <span style="font-size: 20px;">←</span>
+        </button>
+        <h2 class="view-title">All Clients</h2>
+      </div>
+
+      <div class="client-list-search">
+        <input type="text" class="search-bar" id="clientListSearchBar"
+          placeholder="Search clients..."
+          onkeyup="filterClientList(this.value)">
+      </div>
+
+      <div class="client-list-wrapper">
+        <div id="clientListContainer">
+          <div class="loading-spinner">
+            <div class="spinner"></div>
+            <div>Loading clients...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Quick Notes View -->
+    <div id="quickNotesView" class="view">
+      <div class="view-header">
+        <button class="back-button" onclick="switchToControlPanel()">←</button>
+        <h2 class="view-title">Quick Notes</h2>
+        <button class="save-button" id="saveQuickNotesBtn" onclick="saveQuickNotes()" style="display: flex; margin-left: auto;">
+          <span class="save-text" id="saveNotesText">Save</span>
+          <div class="save-spinner"></div>
+        </button>
+      </div>
       
-      // Function to edit user name
-      function editUserName() {
-        const currentName = document.getElementById('userName').textContent;
-        const newName = prompt('Enter your name:', currentName);
-        if (newName && newName !== currentName) {
-          google.script.run
-            .withSuccessHandler(() => {
-              document.getElementById('userName').textContent = newName;
-              showMessage('success', 'Name updated successfully');
-            })
-            .withFailureHandler((error) => {
-              showMessage('error', 'Failed to update name');
-            })
-            .updateUserDisplayName(newName);
+      <div class="current-client" style="margin-bottom: 15px;">
+        <div class="current-client-label">Session for:</div>
+        <div id="quickNotesClientName" class="current-client-name">Loading...</div>
+      </div>
+      
+      <div id="quickNotesContainer">
+        
+        <!-- Today's Wins Section -->
+        <div class="section-title" style="margin-bottom: 16px;">
+          <h4 style="margin: 0; font-weight: bold; color: #333; font-size: 14px; border-bottom: 2px solid #dee2e6; padding-bottom: 8px;">Today's Wins</h4>
+        </div>
+        
+        <div class="note-category wins" style="margin-bottom: 24px;">
+          <div class="note-tags" id="winsQuickTags" style="margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 6px;">
+            <!-- Quick buttons will be loaded dynamically -->
+          </div>
+          <textarea id="wins" class="note-textarea wins-textarea" 
+            style="width: 100%; min-height: 80px; padding: 12px; border: 1px solid #dadce0; border-radius: 6px; font-family: 'Poppins', sans-serif; font-size: 13px; resize: vertical;"
+            placeholder="Quick notes about wins..." 
+            onchange="markUnsaved()"
+            oninput="triggerAutoSave()"></textarea>
+        </div>
+        
+        <!-- Skills Worked On Section -->
+        <div class="skills-title" style="margin-bottom: 16px;">
+          <h4 style="margin: 0; font-weight: bold; color: #333; font-size: 14px; border-bottom: 2px solid #dee2e6; padding-bottom: 8px;">Skills Worked On</h4>
+        </div>
+        
+        <div class="skills-grid" style="display: grid; gap: 16px; margin-bottom: 24px;">
+          <!-- Skills Mastered -->
+          <div class="skill-category mastered">
+            <label class="skill-label" style="font-size: 12px; font-weight: 600; color: #28a745; margin-bottom: 6px; display: block;">
+              <span style="font-style: italic;">Mastered</span>
+            </label>
+            <div class="skill-tags" id="masteredQuickTags" style="margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 6px;">
+              <!-- Quick buttons will be loaded dynamically -->
+            </div>
+            <textarea id="skillsMastered" class="skill-textarea mastered-textarea" 
+              style="width: 100%; min-height: 70px; padding: 10px; border: 1px solid #dadce0; border-radius: 6px; font-family: 'Poppins', sans-serif; font-size: 13px; resize: vertical;"
+              placeholder="Skills the student has fully mastered..." 
+              onchange="markUnsaved()"
+              oninput="triggerAutoSave()"></textarea>
+          </div>
+          
+          <!-- Skills Practiced -->
+          <div class="skill-category practiced">
+            <label class="skill-label" style="font-size: 12px; font-weight: 600; color: #17a2b8; margin-bottom: 6px; display: block;">
+              <span style="font-style: italic;">Practiced</span>
+            </label>
+            <div class="skill-tags" id="practicedQuickTags" style="margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 6px;">
+              <!-- Quick buttons will be loaded dynamically -->
+            </div>
+            <textarea id="skillsPracticed" class="skill-textarea practiced-textarea" 
+              style="width: 100%; min-height: 70px; padding: 10px; border: 1px solid #dadce0; border-radius: 6px; font-family: 'Poppins', sans-serif; font-size: 13px; resize: vertical;"
+              placeholder="Skills we practiced together..." 
+              onchange="markUnsaved()"
+              oninput="triggerAutoSave()"></textarea>
+          </div>
+          
+          <!-- Skills Introduced -->
+          <div class="skill-category introduced">
+            <label class="skill-label" style="font-size: 12px; font-weight: 600; color: #6f42c1; margin-bottom: 6px; display: block;">
+              <span style="font-style: italic;">Introduced</span>
+            </label>
+            <div class="skill-tags" id="introducedQuickTags" style="margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 6px;">
+              <!-- Quick buttons will be loaded dynamically -->
+            </div>
+            <textarea id="skillsIntroduced" class="skill-textarea introduced-textarea" 
+              style="width: 100%; min-height: 70px; padding: 10px; border: 1px solid #dadce0; border-radius: 6px; font-family: 'Poppins', sans-serif; font-size: 13px; resize: vertical;"
+              placeholder="New skills introduced today..." 
+              onchange="markUnsaved()"
+              oninput="triggerAutoSave()"></textarea>
+          </div>
+        </div>
+        
+        <!-- Struggles/Areas to Review Section -->
+        <div class="section-title" style="margin-bottom: 16px;">
+          <h4 style="margin: 0; font-weight: bold; color: #333; font-size: 14px; border-bottom: 2px solid #dee2e6; padding-bottom: 8px;">Struggles/Areas to Review</h4>
+        </div>
+        
+        <div class="note-category struggles" style="margin-bottom: 24px;">
+          <div class="note-tags" id="strugglesQuickTags" style="margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 6px;">
+            <!-- Quick buttons will be loaded dynamically -->
+          </div>
+          <textarea id="struggles" class="note-textarea struggles-textarea" 
+            style="width: 100%; min-height: 80px; padding: 12px; border: 1px solid #dadce0; border-radius: 6px; font-family: 'Poppins', sans-serif; font-size: 13px; resize: vertical;"
+            placeholder="Note any challenges..." 
+            onchange="markUnsaved()"
+            oninput="triggerAutoSave()"></textarea>
+        </div>
+        
+        <!-- Parent Communication Points Section -->
+        <div class="section-title" style="margin-bottom: 16px;">
+          <h4 style="margin: 0; font-weight: bold; color: #333; font-size: 14px; border-bottom: 2px solid #dee2e6; padding-bottom: 8px;">Parent Communication Points</h4>
+        </div>
+        
+        <div class="note-category parent" style="margin-bottom: 24px;">
+          <div class="note-tags" id="parentQuickTags" style="margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 6px;">
+            <!-- Quick buttons will be loaded dynamically -->
+          </div>
+          <textarea id="parent" class="note-textarea parent-textarea" 
+            style="width: 100%; min-height: 80px; padding: 12px; border: 1px solid #dadce0; border-radius: 6px; font-family: 'Poppins', sans-serif; font-size: 13px; resize: vertical;"
+            placeholder="Things to mention to parent..." 
+            onchange="markUnsaved()"
+            oninput="triggerAutoSave()"></textarea>
+        </div>
+        
+        <!-- Next Session Focus Section -->
+        <div class="section-title" style="margin-bottom: 16px;">
+          <h4 style="margin: 0; font-weight: bold; color: #333; font-size: 14px; border-bottom: 2px solid #dee2e6; padding-bottom: 8px;">Next Session Focus</h4>
+        </div>
+        
+        <div class="note-category next" style="margin-bottom: 24px;">
+          <div class="note-tags" id="nextQuickTags" style="margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 6px;">
+            <!-- Quick buttons will be loaded dynamically -->
+          </div>
+          <textarea id="next" class="note-textarea next-textarea" 
+            style="width: 100%; min-height: 80px; padding: 12px; border: 1px solid #dadce0; border-radius: 6px; font-family: 'Poppins', sans-serif; font-size: 13px; resize: vertical;"
+            placeholder="Plan for next time..." 
+            onchange="markUnsaved()"
+            oninput="triggerAutoSave()"></textarea>
+        </div>
+        
+        <!-- Settings Button -->
+        <div style="margin-bottom: 20px; text-align: center;">
+          <button onclick="openQuickNotesSettings()" 
+            style="background: white; border: 1px solid #dadce0; border-radius: 6px; padding: 8px 16px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-size: 12px; transition: all 0.2s; font-family: 'Poppins', sans-serif;"
+            onmouseover="this.style.background='#f8f9fa'; this.style.borderColor='#1a73e8';"
+            onmouseout="this.style.background='white'; this.style.borderColor='#dadce0';"
+            title="Customize quick insert phrases">
+            ⚙️ Customize Quick Buttons
+          </button>
+        </div>
+        
+        <!-- Button Group (matching old dialog style) -->
+        <div style="margin-top: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <button id="saveNotesBtn" onclick="saveQuickNotes()" style="background: #1a73e8; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: 500; font-family: 'Poppins', sans-serif;">
+            Save Notes
+          </button>
+          <button id="sendRecapBtn" onclick="sendQuickRecap()" style="background: #28a745; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: 500; font-family: 'Poppins', sans-serif;">
+            Send Recap
+          </button>
+          <button onclick="loadQuickNotesData()" style="background: #6c757d; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: 500; font-family: 'Poppins', sans-serif;">
+            Reload Saved
+          </button>
+          <button onclick="clearQuickNotes()" style="background: #dc3545; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: 500; font-family: 'Poppins', sans-serif;">
+            Clear Notes
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Version Info -->
+    <div class="version-info">
+      <div id="versionDisplay">Enterprise Sidebar Loading...</div>
+    </div>
+    
+    <script>
+      let searchTimeout;
+      let searchResults = [];
+      let isAuthenticated = false;
+      let userRole = 'tutor';
+      let currentView = 'control';
+      let allClients = [];
+      let filteredClients = [];
+      let isOnline = true;
+      let connectionCheckInterval;
+      let reconnectAttempts = 0;
+      let quickNotesCache = null;
+      let quickNotesAutoSaveTimeout;
+      let quickInsertPhrases = [];
+      
+      // Initialize on load
+      window.onload = function() {
+        initializeSidebar();
+        startConnectionMonitoring();
+      };
+      
+      function initializeSidebar() {
+        // Get initialization data from server
+        google.script.run
+          .withSuccessHandler(setupSidebar)
+          .withFailureHandler(() => {
+            console.log('Failed to initialize - running in basic mode');
+            setupBasicMode();
+          })
+          .getEnterpriseInitData();
+      }
+      
+      function setupSidebar(initData) {
+        isAuthenticated = initData.isAuthenticated;
+        userRole = initData.userRole || 'tutor';
+        
+        // Setup user info
+        if (initData.isAuthenticated && initData.userInfo) {
+          const userInfoDiv = document.getElementById('userInfo');
+          const userNameTextDiv = document.getElementById('userNameText');
+          const userRoleDiv = document.getElementById('userRole');
+
+          userInfoDiv.classList.add('show');
+          // Use OAuth display name or email, fallback to custom display name
+          const displayName = initData.userInfo.displayName ||
+                             initData.userInfo.email?.split('@')[0] ||
+                             'User';
+          userNameTextDiv.textContent = displayName;
+          userRoleDiv.textContent = userRole;
+        } else {
+          // Fallback: Try to fetch user info directly
+          loadUserInfoDynamically();
+        }
+        
+        // Setup admin section
+        if (isAuthenticated && (userRole === 'admin' || userRole === 'supervisor')) {
+          document.getElementById('adminSection').classList.add('show');
+        }
+        
+        // Setup version info
+        document.getElementById('versionDisplay').textContent = 
+          `Enterprise Sidebar v${initData.version} (${initData.build})`;
+        
+        // Setup current client
+        setupCurrentClient(initData.clientInfo);
+        
+        // Preload client list in background
+        preloadClientList();
+        
+        // Update client status periodically
+        setInterval(() => {
+          updateCurrentClient();
+        }, 30000);
+      }
+      
+      function setupBasicMode() {
+        // Hide user info and admin sections
+        document.getElementById('userInfo').style.display = 'none';
+        document.getElementById('adminSection').style.display = 'none';
+        document.getElementById('versionDisplay').textContent = 'Enterprise Sidebar v3.0.0 (Basic Mode)';
+        
+        // Still try to get client info
+        updateCurrentClient();
+      }
+      
+      function setupCurrentClient(clientInfo) {
+        const clientNameDiv = document.getElementById('clientName');
+        const quickNotesBtn = document.getElementById('quickNotesBtn');
+        const recapBtn = document.getElementById('recapBtn');
+        const updateClientBtn = document.getElementById('updateClientBtn');
+        
+        if (clientInfo && clientInfo.isClient) {
+          clientNameDiv.textContent = clientInfo.name;
+          clientNameDiv.className = 'current-client-name';
+          quickNotesBtn.disabled = false;
+          recapBtn.disabled = false;
+          updateClientBtn.style.display = 'flex';
+        } else {
+          clientNameDiv.textContent = 'No client selected';
+          clientNameDiv.className = 'no-client';
+          quickNotesBtn.disabled = true;
+          recapBtn.disabled = true;
+          updateClientBtn.style.display = 'none';
         }
       }
       
-      // Function to search clients with dropdown
-      let searchTimeout;
-      let searchResults = [];
-      
+      // Enhanced client search
       function searchClients(searchTerm) {
         clearTimeout(searchTimeout);
         const dropdown = document.getElementById('searchDropdown');
@@ -352,7 +1057,6 @@
           return;
         }
         
-        // Debounce search
         searchTimeout = setTimeout(() => {
           google.script.run
             .withSuccessHandler((clients) => {
@@ -377,10 +1081,7 @@
         }
         
         dropdown.innerHTML = clients.map(client => 
-          `<div style="padding: 10px; cursor: pointer; border-bottom: 1px solid #f1f3f4;" 
-                onmousedown="selectClientFromSearch('${client.name}')" 
-                onmouseover="this.style.background='#f8f9fa'" 
-                onmouseout="this.style.background='white'">
+          `<div class="search-result" onmousedown="selectClientFromSearch('${client.name.replace(/'/g, "&apos;")}')">
             <strong>${client.name}</strong>
             ${client.sheetName !== client.name ? `<small style="color: #5f6368;"> (${client.sheetName})</small>` : ''}
           </div>`
@@ -393,16 +1094,13 @@
         document.getElementById('clientSearchBar').value = '';
         document.getElementById('searchDropdown').style.display = 'none';
         
-        showLoading();
         google.script.run
           .withSuccessHandler(() => {
-            hideLoading();
             updateCurrentClient();
-            showMessage('success', `Switched to ${clientName}`);
+            alert('Switched to ' + clientName);
           })
           .withFailureHandler((error) => {
-            hideLoading();
-            showMessage('error', 'Failed to switch client');
+            alert('Failed to switch client');
           })
           .switchToClient(clientName);
       }
@@ -415,68 +1113,19 @@
       }
       
       function hideSearchDropdown() {
-        // Delay to allow click on dropdown items
         setTimeout(() => {
           document.getElementById('searchDropdown').style.display = 'none';
         }, 200);
       }
       
-      
-      // Initialize sidebar on load
-      google.script.run
-        .withSuccessHandler(initializeSidebar)
-        .withFailureHandler(handleAuthError)
-        .initializeEnterpriseMode();
-      
-      function initializeSidebar(initData) {
-        if (!initData.success && initData.fallbackMode) {
-          // Running in basic mode
-          document.getElementById('userName').textContent = 'Guest User';
-          document.getElementById('userRole').textContent = 'Basic Mode';
-        } else if (initData.success) {
-          currentUser = initData.user;
-          
-          // Update user info
-          document.getElementById('userName').textContent = initData.user.displayName || initData.user.email.split('@')[0];
-          document.getElementById('userRole').textContent = initData.role || 'tutor';
-          
-          // Show/hide admin section
-          if (initData.role === 'admin' || initData.role === 'supervisor') {
-            document.getElementById('adminSection').style.display = 'block';
-          }
-        }
-        
-        // Load current client info
-        updateCurrentClient();
-      }
-      
-      function handleAuthError(error) {
-        const errorDiv = document.getElementById('error');
-        errorDiv.textContent = 'Authentication Error: Please refresh the page and try again.';
-        errorDiv.style.display = 'block';
-        
-        // Disable all buttons
-        const buttons = document.querySelectorAll('button');
-        buttons.forEach(btn => btn.disabled = true);
-      }
-      
+      // Update current client display
       function updateCurrentClient() {
         google.script.run
           .withSuccessHandler((clientInfo) => {
-            const clientNameDiv = document.getElementById('clientName');
-            const quickNotesBtn = document.getElementById('quickNotesBtn');
-            const recapBtn = document.getElementById('recapBtn');
-            
+            setupCurrentClient(clientInfo);
+            // Preload Quick Notes for the new client
             if (clientInfo && clientInfo.isClient) {
-              clientNameDiv.textContent = clientInfo.name;
-              clientNameDiv.className = 'current-client-name';
-              quickNotesBtn.disabled = false;
-              recapBtn.disabled = false;
-            } else {
-              clientNameDiv.textContent = 'No client selected';
-              clientNameDiv.className = 'no-client';
-              quickNotesBtn.disabled = true;
-              recapBtn.disabled = true;
+              preloadQuickNotes();
             }
           })
           .withFailureHandler(() => {
@@ -486,146 +1135,921 @@
           .getCurrentClientInfo();
       }
       
-      function runFunction(functionName, event) {
-        showLoading(event);
-        clearMessages();
-        
+      // Preload client list in background
+      function preloadClientList() {
+        // Load clients in background without showing UI
         google.script.run
-          .withSuccessHandler((result) => {
-            hideLoading();
+          .withSuccessHandler((clients) => {
+            allClients = clients || [];
+            filteredClients = [...allClients];
+            console.log(`Preloaded ${allClients.length} clients`);
+          })
+          .withFailureHandler((error) => {
+            console.error('Failed to preload clients:', error);
+          })
+          .getAllClientsForList();
+      }
+      
+      // Show client list
+      function showClientList() {
+        // Switch to client list view
+        switchToClientList();
+        
+        // If we have cached clients, display them immediately
+        if (allClients.length > 0) {
+          renderClientList();
+          // Refresh in background
+          refreshClientList();
+        } else {
+          // No cache, load normally
+          loadClientList();
+        }
+      }
+      
+      // Refresh client list in background
+      function refreshClientList() {
+        google.script.run
+          .withSuccessHandler((clients) => {
+            const previousCount = allClients.length;
+            allClients = clients || [];
+            filteredClients = [...allClients];
             
-            // Update current client info after certain actions
-            if (['findClient', 'addNewClient'].includes(functionName)) {
-              updateCurrentClient();
-            }
-            
-            // Show success message
-            if (result && result.message) {
-              showMessage('success', result.message);
-            } else {
-              showMessage('success', 'Action completed successfully');
+            // Only re-render if data changed significantly
+            if (allClients.length !== previousCount) {
+              renderClientList();
             }
           })
           .withFailureHandler((error) => {
-            hideLoading();
-            showMessage('error', error.message || 'An error occurred');
+            console.error('Failed to refresh clients:', error);
+          })
+          .getAllClientsForList();
+      }
+      
+      // Switch to client list view
+      function switchToClientList() {
+        document.getElementById('controlView').classList.remove('active');
+        document.getElementById('clientListView').classList.add('active');
+        currentView = 'clientList';
+      }
+      
+      // Switch back to control panel
+      function switchToControlPanel() {
+        document.getElementById('clientListView').classList.remove('active');
+        document.getElementById('controlView').classList.add('active');
+        currentView = 'control';
+      }
+      
+      // Load client list data
+      function loadClientList() {
+        const container = document.getElementById('clientListContainer');
+        
+        // Show loading state
+        container.innerHTML = `
+          <div class="loading-spinner">
+            <div class="spinner"></div>
+            <div>Loading clients...</div>
+          </div>
+        `;
+        
+        google.script.run
+          .withSuccessHandler((clients) => {
+            allClients = clients || [];
+            filteredClients = [...allClients];
+            renderClientList();
+          })
+          .withFailureHandler((error) => {
+            container.innerHTML = `
+              <div class="empty-state">
+                <div class="empty-state-icon">⚠️</div>
+                <div>Failed to load clients</div>
+                <div style="font-size: 12px; margin-top: 8px;">${error.message || 'Unknown error'}</div>
+                <button onclick="loadClientList()" style="margin-top: 16px; width: auto; padding: 8px 16px;">
+                  Try Again
+                </button>
+              </div>
+            `;
+          })
+          .getAllClientsForList();
+      }
+      
+      // Render client list
+      function renderClientList() {
+        const container = document.getElementById('clientListContainer');
+
+        if (!filteredClients || filteredClients.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">👥</div>
+              <div>No clients found</div>
+              <div style="font-size: 12px; margin-top: 8px;">Try adjusting your search or add a new client</div>
+            </div>
+          `;
+          return;
+        }
+
+        const currentClientName = document.getElementById('clientName').textContent;
+
+        container.innerHTML = `
+          <div class="client-list">
+            ${filteredClients.map(client => `
+              <div class="client-item ${client.name === currentClientName ? 'current' : ''}"
+                   onclick="selectClientFromList('${client.name.replace(/'/g, "\\'")}')"
+                   title="${client.name}">
+                <div class="client-icon">👤</div>
+                <div class="client-name-only">${client.name}</div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+      
+      // Filter client list
+      function filterClientList(searchTerm) {
+        clearTimeout(searchTimeout);
+        
+        searchTimeout = setTimeout(() => {
+          if (!searchTerm.trim()) {
+            filteredClients = [...allClients];
+          } else {
+            const term = searchTerm.toLowerCase();
+            filteredClients = allClients.filter(client => 
+              client.name.toLowerCase().includes(term) ||
+              (client.sheetName && client.sheetName.toLowerCase().includes(term))
+            );
+          }
+          renderClientList();
+        }, 300);
+      }
+      
+      // Select client from list
+      function selectClientFromList(clientName) {
+        google.script.run
+          .withSuccessHandler(() => {
+            // Update cache to mark new current client
+            allClients.forEach(client => {
+              client.isCurrent = client.name === clientName;
+            });
+            filteredClients = [...allClients];
             
-            // If rate limited, show warning
-            if (error.message && error.message.includes('Rate limit')) {
-              showMessage('warning', 'Rate limit reached. Please wait before trying again.');
+            updateCurrentClient();
+            switchToControlPanel();
+            
+            // Show success message briefly
+            const container = document.getElementById('clientListContainer');
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success';
+            successDiv.style.position = 'fixed';
+            successDiv.style.top = '20px';
+            successDiv.style.left = '20px';
+            successDiv.style.right = '20px';
+            successDiv.style.zIndex = '1000';
+            successDiv.style.display = 'block';
+            successDiv.textContent = `Switched to ${clientName}`;
+            document.body.appendChild(successDiv);
+            
+            setTimeout(() => {
+              document.body.removeChild(successDiv);
+            }, 3000);
+          })
+          .withFailureHandler((error) => {
+            alert(`Failed to switch to ${clientName}: ${error.message || 'Unknown error'}`);
+          })
+          .switchToClient(clientName);
+      }
+      
+      // Switch to Quick Notes
+      function switchToQuickNotes() {
+        // Check if client is selected
+        const clientName = document.getElementById('clientName').textContent;
+        if (clientName === 'No client selected' || clientName === 'Loading...') {
+          alert('Please select a client first');
+          return;
+        }
+        
+        // Switch to Quick Notes view
+        document.getElementById('controlView').classList.remove('active');
+        document.getElementById('quickNotesView').classList.add('active');
+        currentView = 'quickNotes';
+        
+        // Set client name in Quick Notes
+        document.getElementById('quickNotesClientName').textContent = clientName;
+        
+        // Initialize Quick Notes data and pill buttons
+        loadQuickNotesData();
+        loadQuickNotesButtons();
+        
+        // Load Quick Notes with cache priority
+        loadQuickNotes();
+      }
+      
+      // Load Quick Notes with cache priority
+      function loadQuickNotes() {
+        const textarea = document.getElementById('quickNotesTextarea');
+        
+        // If we have cached notes, display them immediately
+        if (quickNotesCache !== null) {
+          textarea.value = quickNotesCache.data || '';
+          // Refresh in background
+          refreshQuickNotes();
+        } else {
+          // No cache, fetch from server
+          textarea.value = 'Loading notes...';
+          textarea.disabled = true;
+          
+          google.script.run
+            .withSuccessHandler((notesData) => {
+              quickNotesCache = notesData || { data: '', timestamp: 0 };
+              textarea.value = quickNotesCache.data || '';
+              textarea.disabled = false;
+              textarea.focus();
+            })
+            .withFailureHandler((error) => {
+              console.error('Failed to load notes:', error);
+              textarea.value = '';
+              textarea.disabled = false;
+              textarea.placeholder = 'Failed to load previous notes. You can start fresh.';
+            })
+            .getQuickNotesForCurrentSheet();
+        }
+        
+        // Load quick insert phrases if not already loaded
+        if (quickInsertPhrases.length === 0) {
+          loadQuickInsertPhrases();
+        } else {
+          renderQuickInsertButtons();
+        }
+      }
+      
+      // Refresh Quick Notes in background
+      function refreshQuickNotes() {
+        google.script.run
+          .withSuccessHandler((notesData) => {
+            const newData = notesData || { data: '', timestamp: 0 };
+            
+            // Only update if server data is newer than cache
+            if (newData.timestamp > (quickNotesCache?.timestamp || 0)) {
+              quickNotesCache = newData;
+              const textarea = document.getElementById('quickNotesTextarea');
+              
+              // Only update if user hasn't started typing
+              if (textarea.value === (quickNotesCache.data || '')) {
+                textarea.value = newData.data || '';
+              }
             }
+          })
+          .withFailureHandler((error) => {
+            console.error('Failed to refresh notes:', error);
+          })
+          .getQuickNotesForCurrentSheet();
+      }
+      
+      // Preload Quick Notes when client is selected
+      function preloadQuickNotes() {
+        const clientName = document.getElementById('clientName').textContent;
+        if (clientName !== 'No client selected' && clientName !== 'Loading...') {
+          google.script.run
+            .withSuccessHandler((notesData) => {
+              quickNotesCache = notesData || { data: '', timestamp: 0 };
+              console.log('Preloaded Quick Notes');
+            })
+            .withFailureHandler((error) => {
+              console.error('Failed to preload notes:', error);
+            })
+            .getQuickNotesForCurrentSheet();
+        }
+      }
+      
+      // Load quick insert phrases
+      function loadQuickInsertPhrases() {
+        // Load user's custom quick button settings
+        google.script.run
+          .withSuccessHandler((settings) => {
+            // Combine all custom phrases from different categories
+            quickInsertPhrases = [];
+            
+            // Add custom phrases from each category
+            if (settings.wins) quickInsertPhrases = quickInsertPhrases.concat(settings.wins.filter(p => p));
+            if (settings.mastered) quickInsertPhrases = quickInsertPhrases.concat(settings.mastered.filter(p => p));
+            if (settings.practiced) quickInsertPhrases = quickInsertPhrases.concat(settings.practiced.filter(p => p));
+            if (settings.introduced) quickInsertPhrases = quickInsertPhrases.concat(settings.introduced.filter(p => p));
+            if (settings.struggles) quickInsertPhrases = quickInsertPhrases.concat(settings.struggles.filter(p => p));
+            if (settings.parent) quickInsertPhrases = quickInsertPhrases.concat(settings.parent.filter(p => p));
+            if (settings.next) quickInsertPhrases = quickInsertPhrases.concat(settings.next.filter(p => p));
+            
+            // Remove duplicates and empty strings
+            quickInsertPhrases = [...new Set(quickInsertPhrases.filter(p => p))];
+            
+            // If no custom phrases, use defaults
+            if (quickInsertPhrases.length === 0) {
+              quickInsertPhrases = [
+                "Great progress today!",
+                "Needs more practice with",
+                "Excellent understanding of",
+                "Working on",
+                "Homework assigned:",
+                "Next session focus:",
+                "Parent update:",
+                "Achievement unlocked!"
+              ];
+            }
+            
+            renderQuickInsertButtons();
+          })
+          .withFailureHandler((error) => {
+            console.error('Failed to load custom buttons:', error);
+            // Fall back to defaults
+            quickInsertPhrases = [
+              "Great progress today!",
+              "Needs more practice with",
+              "Excellent understanding of",
+              "Working on",
+              "Homework assigned:",
+              "Next session focus:",
+              "Parent update:",
+              "Achievement unlocked!"
+            ];
+            renderQuickInsertButtons();
+          })
+          .getQuickNotesSettings();
+      }
+      
+      // Render quick insert buttons
+      function renderQuickInsertButtons() {
+        const container = document.getElementById('quickInsertButtons');
+        container.innerHTML = quickInsertPhrases.map(phrase => `
+          <button onclick="insertQuickPhrase('${phrase.replace(/'/g, "\\'")}')" 
+            style="padding: 6px 12px; border: 1px solid #dadce0; border-radius: 16px; background: white; cursor: pointer; font-size: 13px; transition: all 0.2s;"
+            onmouseover="this.style.background='#e8f0fe'; this.style.borderColor='#1a73e8';"
+            onmouseout="this.style.background='white'; this.style.borderColor='#dadce0';">
+            ${phrase}
+          </button>
+        `).join('');
+      }
+      
+      // Insert quick phrase into textarea
+      function insertQuickPhrase(phrase) {
+        const textarea = document.getElementById('quickNotesTextarea');
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const text = textarea.value;
+        
+        // Insert phrase at cursor position
+        const newText = text.substring(0, start) + phrase + ' ' + text.substring(end);
+        textarea.value = newText;
+        
+        // Set cursor after inserted phrase
+        textarea.focus();
+        const newPosition = start + phrase.length + 1;
+        textarea.setSelectionRange(newPosition, newPosition);
+        
+        // Trigger auto-save
+        triggerAutoSave();
+      }
+      
+      // Auto-save Quick Notes
+      function triggerAutoSave() {
+        // Clear existing timeout
+        clearTimeout(quickNotesAutoSaveTimeout);
+        
+        // Set new timeout for auto-save (2 seconds after typing stops)
+        quickNotesAutoSaveTimeout = setTimeout(() => {
+          saveQuickNotes(true); // true = auto-save
+        }, 2000);
+      }
+      
+      // Save Quick Notes
+      function saveQuickNotes(isAutoSave = false) {
+        const saveBtn = document.getElementById('saveQuickNotesBtn');
+        const saveText = document.getElementById('saveNotesText');
+        
+        // Collect structured data from all textareas
+        const notesData = {
+          wins: (document.getElementById('wins') && document.getElementById('wins').value) || '',
+          skillsMastered: (document.getElementById('skillsMastered') && document.getElementById('skillsMastered').value) || '',
+          skillsPracticed: (document.getElementById('skillsPracticed') && document.getElementById('skillsPracticed').value) || '',
+          skillsIntroduced: (document.getElementById('skillsIntroduced') && document.getElementById('skillsIntroduced').value) || '',
+          struggles: (document.getElementById('struggles') && document.getElementById('struggles').value) || '',
+          parent: (document.getElementById('parent') && document.getElementById('parent').value) || '',
+          next: (document.getElementById('next') && document.getElementById('next').value) || ''
+        };
+        
+        // Update cache immediately
+        if (!quickNotesCache) {
+          quickNotesCache = { data: {}, timestamp: 0 };
+        }
+        quickNotesCache.data = notesData;
+        quickNotesCache.timestamp = Date.now();
+        
+        // Visual feedback
+        if (!isAutoSave) {
+          saveBtn.className = 'save-button loading';
+        }
+        
+        // Save to server
+        google.script.run
+          .withSuccessHandler(() => {
+            if (!isAutoSave) {
+              saveBtn.className = 'save-button success';
+              saveText.textContent = 'Saved';
+              
+              setTimeout(() => {
+                saveBtn.className = 'save-button';
+                saveText.textContent = 'Save';
+              }, 2000);
+            }
+          })
+          .withFailureHandler((error) => {
+            if (!isAutoSave) {
+              saveBtn.className = 'save-button error';
+              saveText.textContent = 'Error';
+              
+              setTimeout(() => {
+                saveBtn.className = 'save-button';
+                saveText.textContent = 'Save';
+              }, 2000);
+            }
+            console.error('Failed to save notes:', error);
+          })
+          .saveQuickNotes(JSON.stringify(notesData));
+      }
+      
+      // Clear Quick Notes
+      function clearQuickNotes() {
+        if (confirm('Are you sure you want to clear all notes?')) {
+          // Clear all structured textareas
+          const fields = ['wins', 'skillsMastered', 'skillsPracticed', 'skillsIntroduced', 'struggles', 'parent', 'next'];
+          fields.forEach(field => {
+            const element = document.getElementById(field);
+            if (element) element.value = '';
+          });
+          quickNotesCache = { data: {}, timestamp: Date.now() };
+          saveQuickNotes();
+        }
+      }
+      
+      // Send Quick Recap from Quick Notes
+      function sendQuickRecap() {
+        const notes = document.getElementById('quickNotesTextarea').value;
+        if (!notes.trim()) {
+          alert('Please add some notes before sending a recap');
+          return;
+        }
+        
+        // Save notes first
+        saveQuickNotes();
+        
+        // Open recap dialog
+        google.script.run
+          .withSuccessHandler(() => {
+            // Recap dialog will be shown by server
+          })
+          .withFailureHandler((error) => {
+            alert('Failed to open recap dialog: ' + error.message);
+          })
+          .sendEmailSecure();
+      }
+      
+      // Open Quick Notes settings to customize pills
+      function openQuickNotesSettings() {
+        google.script.run
+          .withSuccessHandler(() => {
+            // Settings dialog will be shown by server
+            // After settings close, reload the custom phrases
+            setTimeout(() => {
+              loadQuickInsertPhrases();
+            }, 1000);
+          })
+          .withFailureHandler((error) => {
+            alert('Failed to open settings: ' + error.message);
+          })
+          .showQuickNotesSettings();
+      }
+      
+      // Open update client dialog
+      function openUpdateClientDialog() {
+        google.script.run
+          .withSuccessHandler(() => {
+            // Dialog will be shown by the server
+          })
+          .withFailureHandler((error) => {
+            alert('Failed to open client update dialog');
+          })
+          .openUpdateClientDialog();
+      }
+      
+      // Run server function with loading state
+      function runFunction(functionName, button) {
+        if (button) {
+          button.disabled = true;
+          const originalText = button.textContent;
+          button.textContent = 'Loading...';
+          
+          setTimeout(() => {
+            button.disabled = false;
+            button.textContent = originalText;
+          }, 2000);
+        }
+        
+        google.script.run
+          .withSuccessHandler((result) => {
+            if (button) {
+              button.disabled = false;
+              button.textContent = 'Complete';
+              setTimeout(() => {
+                button.textContent = button.dataset.originalText || originalText;
+              }, 1500);
+            }
+            if (result && result.message) {
+              alert(result.message);
+            }
+            if (functionName.includes('Client')) {
+              updateCurrentClient();
+            }
+          })
+          .withFailureHandler((error) => {
+            if (button) {
+              button.disabled = false;
+              button.textContent = 'Try Again';
+              setTimeout(() => {
+                button.textContent = button.dataset.originalText || originalText;
+              }, 2000);
+            }
+            alert(error.message || 'An error occurred');
           })[functionName]();
       }
       
-      function runSecureFunction(functionName, data = null, event) {
-        showLoading(event);
-        clearMessages();
-        
-        const args = data ? [data] : [];
-        
+      // Load user info dynamically when not available from initial data
+      function loadUserInfoDynamically() {
         google.script.run
-          .withSuccessHandler((result) => {
-            hideLoading();
-            
-            if (result.success) {
-              showMessage('success', 'Action completed successfully');
-              updateCurrentClient();
+          .withSuccessHandler((userInfo) => {
+            if (userInfo && userInfo.authenticated) {
+              const userInfoDiv = document.getElementById('userInfo');
+              const userNameTextDiv = document.getElementById('userNameText');
+              const userRoleDiv = document.getElementById('userRole');
+
+              userInfoDiv.classList.add('show');
+
+              // Use OAuth info or fallback to stored display name
+              const displayName = userInfo.displayName ||
+                                 userInfo.email?.split('@')[0] ||
+                                 'User';
+              userNameTextDiv.textContent = displayName;
+              userRoleDiv.textContent = userInfo.role || 'tutor';
+
+              isAuthenticated = true;
+              userRole = userInfo.role || 'tutor';
             } else {
-              showMessage('warning', result.reason || 'Action completed with warnings');
+              // Hide user info section if not authenticated
+              document.getElementById('userInfo').style.display = 'none';
             }
           })
           .withFailureHandler((error) => {
-            hideLoading();
+            console.error('Failed to load user info:', error);
+            // Hide user info section on error
+            document.getElementById('userInfo').style.display = 'none';
+          })
+          .getCurrentUserInfo();
+      }
+
+      // Edit user name (Enterprise)
+      function editUserName() {
+        if (!isAuthenticated) return;
+        
+        const userNameDiv = document.getElementById('userName');
+        const userNameTextDiv = document.getElementById('userNameText');
+        const userNameInput = document.getElementById('userNameInput');
+        const saveButton = document.getElementById('saveNameButton');
+        
+        // Enter edit mode
+        userNameDiv.classList.add('editing');
+        userNameTextDiv.style.display = 'none';
+        userNameInput.style.display = 'block';
+        saveButton.style.display = 'flex';
+        
+        // Set current value and focus
+        userNameInput.value = userNameTextDiv.textContent.trim();
+        userNameInput.focus();
+        userNameInput.select();
+        
+        // Handle enter key
+        userNameInput.onkeypress = function(e) {
+          if (e.key === 'Enter') {
+            saveUserName();
+          }
+          if (e.key === 'Escape') {
+            cancelEditUserName();
+          }
+        };
+      }
+      
+      function saveUserName() {
+        const userNameDiv = document.getElementById('userName');
+        const userNameTextDiv = document.getElementById('userNameText');
+        const userNameInput = document.getElementById('userNameInput');
+        const saveButton = document.getElementById('saveNameButton');
+        const saveButtonText = document.getElementById('saveButtonText');
+        
+        const newName = userNameInput.value.trim();
+        const currentName = userNameTextDiv.textContent.trim();
+        
+        if (!newName || newName === currentName) {
+          cancelEditUserName();
+          return;
+        }
+        
+        // Set loading state
+        saveButton.className = 'save-button loading';
+        saveButton.onclick = null;
+        userNameInput.disabled = true;
+        
+        google.script.run
+          .withSuccessHandler(() => {
+            // Update display
+            userNameTextDiv.textContent = newName;
             
-            if (error.message && error.message.includes('Rate limit')) {
-              showMessage('warning', 'Rate limit reached. Please wait before trying again.');
-            } else {
-              showMessage('error', error.message || 'An error occurred');
+            // Show success state
+            saveButton.className = 'save-button success';
+            saveButtonText.textContent = 'Saved';
+            
+            // Exit edit mode after delay
+            setTimeout(() => {
+              exitEditMode();
+            }, 1500);
+          })
+          .withFailureHandler((error) => {
+            // Show error state
+            saveButton.className = 'save-button error';
+            saveButtonText.textContent = 'Error';
+            
+            // Re-enable after delay
+            setTimeout(() => {
+              saveButton.className = 'save-button';
+              saveButtonText.textContent = 'Save';
+              saveButton.onclick = saveUserName;
+              userNameInput.disabled = false;
+            }, 2000);
+          })
+          .updateUserDisplayName(newName);
+      }
+      
+      function cancelEditUserName() {
+        exitEditMode();
+      }
+      
+      function exitEditMode() {
+        const userNameDiv = document.getElementById('userName');
+        const userNameTextDiv = document.getElementById('userNameText');
+        const userNameInput = document.getElementById('userNameInput');
+        const saveButton = document.getElementById('saveNameButton');
+        const saveButtonText = document.getElementById('saveButtonText');
+        
+        // Exit edit mode
+        userNameDiv.classList.remove('editing');
+        userNameTextDiv.style.display = 'block';
+        userNameInput.style.display = 'none';
+        saveButton.style.display = 'none';
+        
+        // Reset button state
+        saveButton.className = 'save-button';
+        saveButtonText.textContent = 'Save';
+        saveButton.onclick = saveUserName;
+        userNameInput.disabled = false;
+        userNameInput.onkeypress = null;
+      }
+      
+      // Connection monitoring functions
+      let disconnectTimeout = null;
+      
+      function startConnectionMonitoring() {
+        // Check connection every 5 seconds
+        connectionCheckInterval = setInterval(checkConnection, 5000);
+        
+        // Also monitor online/offline events
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOfflineImmediate);
+        
+        // Initial connection check
+        checkConnection();
+      }
+      
+      function checkConnection() {
+        // Test connection by calling a simple connectivity test function
+        // This is faster and more reliable than getCurrentClientInfo()
+        google.script.run
+          .withSuccessHandler(() => {
+            if (!isOnline) {
+              handleOnline();
             }
-          })[functionName](...args);
+            // Clear disconnect timeout since we're connected
+            if (disconnectTimeout) {
+              clearTimeout(disconnectTimeout);
+              disconnectTimeout = null;
+            }
+            reconnectAttempts = 0;
+          })
+          .withFailureHandler(() => {
+            if (isOnline) {
+              // Don't show banner immediately - wait 2 seconds for graceful handling of temporary outages
+              if (!disconnectTimeout) {
+                disconnectTimeout = setTimeout(() => {
+                  handleOffline();
+                  disconnectTimeout = null;
+                }, 2000);
+              }
+            }
+          })
+          .testConnectivity();
       }
       
-      let loadingButton = null;
-      
-      function showLoading(button) {
-        // If a specific button triggered this, show spinner on that button
-        if (button && button.target) {
-          loadingButton = button.target.closest('button');
-          if (loadingButton) {
-            const originalContent = loadingButton.innerHTML;
-            loadingButton.setAttribute('data-original-content', originalContent);
-            loadingButton.innerHTML = '<div class="spinner" style="border: 2px solid #f3f3f3; border-top: 2px solid #1a73e8; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; margin: 0 auto;"></div>';
-            loadingButton.disabled = true;
-          }
-        } else {
-          // Show general loading overlay
-          document.getElementById('loading').style.display = 'block';
-          const buttons = document.querySelectorAll('button');
-          buttons.forEach(btn => btn.disabled = true);
-        }
-      }
-      
-      function hideLoading() {
-        // Restore button if we have one
-        if (loadingButton) {
-          const originalContent = loadingButton.getAttribute('data-original-content');
-          if (originalContent) {
-            loadingButton.innerHTML = originalContent;
-          }
-          loadingButton.disabled = false;
-          loadingButton = null;
-        }
+      function handleOnline() {
+        isOnline = true;
+        const banner = document.getElementById('connectionBanner');
+        const icon = document.getElementById('connectionIcon');
+        const message = document.getElementById('connectionMessage');
         
-        // Hide general loading
-        document.getElementById('loading').style.display = 'none';
+        // Show success briefly then hide
+        banner.className = 'connection-banner connected show';
+        icon.textContent = '✅';
+        message.textContent = 'Connection restored';
+        document.body.classList.remove('has-banner');
+        
+        // Remove offline state from buttons
         const buttons = document.querySelectorAll('button');
-        buttons.forEach(btn => btn.disabled = false);
+        buttons.forEach(btn => {
+          btn.classList.remove('offline-disabled');
+          if (!btn.hasAttribute('data-originally-disabled')) {
+            btn.disabled = false;
+          }
+        });
         
-        // Re-check client-dependent buttons
+        // Hide banner after 3 seconds
+        setTimeout(() => {
+          banner.classList.remove('show');
+        }, 3000);
+        
+        // Refresh current client status
         updateCurrentClient();
       }
       
-      function showMessage(type, message) {
-        clearMessages();
-        const messageDiv = document.getElementById(type);
-        messageDiv.textContent = message;
-        messageDiv.style.display = 'block';
+      function handleOffline() {
+        isOnline = false;
+        const banner = document.getElementById('connectionBanner');
+        const icon = document.getElementById('connectionIcon');
+        const message = document.getElementById('connectionMessage');
         
-        // Auto-hide after 5 seconds
-        setTimeout(() => {
-          messageDiv.style.display = 'none';
-        }, 5000);
-      }
-      
-      function clearMessages() {
-        ['error', 'success', 'warning'].forEach(type => {
-          document.getElementById(type).style.display = 'none';
+        banner.className = 'connection-banner show';
+        icon.textContent = '⚠️';
+        message.textContent = 'Connection lost. Some features may be unavailable.';
+        document.body.classList.add('has-banner');
+        
+        // Disable buttons that require connection
+        const buttons = document.querySelectorAll('button:not(.back-button)');
+        buttons.forEach(btn => {
+          if (!btn.disabled) {
+            btn.setAttribute('data-originally-disabled', 'false');
+          }
+          btn.classList.add('offline-disabled');
+          btn.disabled = true;
         });
       }
       
-      // Load version info
-      function loadVersionInfo() {
-        google.script.run
-          .withSuccessHandler((versionInfo) => {
-            const scriptVersionDiv = document.getElementById('scriptVersion');
-            scriptVersionDiv.textContent = `Script v${versionInfo.script.version} (${versionInfo.script.build})`;
-          })
-          .withFailureHandler(() => {
-            const scriptVersionDiv = document.getElementById('scriptVersion');
-            scriptVersionDiv.textContent = 'Script version: Unknown';
-          })
-          .getVersionInfo();
+      // Add handler for immediate offline detection (browser events)
+      function handleOfflineImmediate() {
+        // Clear any pending disconnect timeout since we know we're offline now
+        if (disconnectTimeout) {
+          clearTimeout(disconnectTimeout);
+          disconnectTimeout = null;
+        }
+        handleOffline();
       }
       
-      // Refresh data every 30 seconds
-      setInterval(() => {
-        if (currentUser) {
-          updateCurrentClient();
-        }
-      }, 30000);
+      // Store original disabled states for buttons
+      function preserveButtonStates() {
+        const buttons = document.querySelectorAll('button');
+        buttons.forEach(btn => {
+          if (btn.disabled) {
+            btn.setAttribute('data-originally-disabled', 'true');
+          }
+        });
+      }
       
-      // Load version info on startup
-      loadVersionInfo();
+      // Call this after initial load
+      setTimeout(preserveButtonStates, 1000);
+      
+      // Load and populate pill buttons for each section
+      function loadQuickNotesButtons() {
+        google.script.run
+          .withSuccessHandler((settings) => {
+            populateQuickButtons(settings);
+          })
+          .withFailureHandler((error) => {
+            console.error('Failed to load quick button settings:', error);
+            // Fall back to default buttons
+            populateQuickButtons(getDefaultButtonSettings());
+          })
+          .getQuickNotesSettings();
+      }
+      
+      // Populate quick buttons based on user settings
+      function populateQuickButtons(settings) {
+        const sections = [
+          { key: 'wins', containerId: 'winsQuickTags', fieldId: 'wins', cssClass: 'wins-tag' },
+          { key: 'mastered', containerId: 'masteredQuickTags', fieldId: 'skillsMastered', cssClass: 'mastered-tag' },
+          { key: 'practiced', containerId: 'practicedQuickTags', fieldId: 'skillsPracticed', cssClass: 'practiced-tag' },
+          { key: 'introduced', containerId: 'introducedQuickTags', fieldId: 'skillsIntroduced', cssClass: 'introduced-tag' },
+          { key: 'struggles', containerId: 'strugglesQuickTags', fieldId: 'struggles', cssClass: 'struggles-tag' },
+          { key: 'parent', containerId: 'parentQuickTags', fieldId: 'parent', cssClass: 'parent-tag' },
+          { key: 'next', containerId: 'nextQuickTags', fieldId: 'next', cssClass: 'next-tag' }
+        ];
+        
+        sections.forEach(section => {
+          const container = document.getElementById(section.containerId);
+          if (!container) return;
+          
+          container.innerHTML = '';
+          
+          const phrases = settings[section.key] || [];
+          phrases.filter(p => p).forEach(phrase => {
+            const button = document.createElement('button');
+            button.className = `quick-tag ${section.cssClass}`;
+            button.textContent = phrase;
+            button.onclick = () => appendToField(section.fieldId, phrase);
+            button.style.cssText = 'font-size: 11px; padding: 4px 8px; margin: 2px; border: 1px solid #ccc; border-radius: 12px; background: #f8f9fa; cursor: pointer; transition: all 0.2s; display: inline-block;';
+            button.onmouseover = () => button.style.background = '#e9ecef';
+            button.onmouseout = () => button.style.background = '#f8f9fa';
+            container.appendChild(button);
+          });
+        });
+      }
+      
+      // Append text to a specific field
+      function appendToField(fieldId, text) {
+        const field = document.getElementById(fieldId);
+        if (field) {
+          const currentValue = field.value;
+          const separator = currentValue && !currentValue.endsWith(' ') && !currentValue.endsWith('
+') ? ' ' : '';
+          field.value = currentValue + separator + text;
+          field.focus();
+          triggerAutoSave();
+        }
+      }
+      
+      // Get default button settings
+      // Load and populate Quick Notes structured data
+      function loadQuickNotesData() {
+        // Always fetch fresh from server
+        google.script.run
+          .withSuccessHandler((notesResponse) => {
+            if (notesResponse && notesResponse.data) {
+              let notes;
+              try {
+                notes = typeof notesResponse.data === 'string' ? JSON.parse(notesResponse.data) : notesResponse.data;
+              } catch (e) {
+                console.warn('Failed to parse notes data:', e);
+                notes = {};
+              }
+              
+              populateQuickNotesForm(notes);
+            }
+          })
+          .withFailureHandler((error) => {
+            console.error('Failed to load Quick Notes:', error);
+          })
+          .getQuickNotesForCurrentSheet();
+      }
+      
+      // Populate the structured form with notes data
+      function populateQuickNotesForm(notes) {
+        const fields = {
+          'wins': notes.wins || '',
+          'skillsMastered': notes.skillsMastered || '',
+          'skillsPracticed': notes.skillsPracticed || '',
+          'skillsIntroduced': notes.skillsIntroduced || '',
+          'struggles': notes.struggles || '',
+          'parent': notes.parent || '',
+          'next': notes.next || ''
+        };
+        
+        Object.keys(fields).forEach(fieldId => {
+          const element = document.getElementById(fieldId);
+          if (element) {
+            element.value = fields[fieldId];
+          }
+        });
+      }
+      
+      function getDefaultButtonSettings() {
+        return {
+          wins: ['Aha moment!', 'Solved independently', 'Confidence boost', 'Speed improved'],
+          mastered: ['Problem solving', 'Reading comprehension', 'Time management'],
+          practiced: ['Test strategies', 'ACT math', 'Essay writing'],
+          introduced: ['New concept', 'Advanced technique', 'Study method'],
+          struggles: ['Careless errors', 'Time pressure', 'Concept confusion', 'Attention focus'],
+          parent: ['Great progress today', 'Needs more practice', 'Homework assigned', 'Very focused'],
+          next: ['Continue working on', 'Review previous concepts', 'Practice homework', 'Test preparation']
+        };
+      }
     </script>
   </body>
 </html>

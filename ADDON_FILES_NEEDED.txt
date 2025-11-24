@@ -1,0 +1,202 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║         WORKSPACE ADD-ON CONVERSION - FILES TO UPLOAD                      ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+🎯 GOAL: Convert to standalone Workspace Add-on for internal distribution
+
+
+📦 FILES TO UPLOAD TO STANDALONE APPS SCRIPT PROJECT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. appsscript.json (MANIFEST - MUST BE FIRST)
+   Location: /Users/leeke/clientmanagement/appsscript.json
+   Purpose: Configures add-on, defines triggers and permissions
+   How: Project Settings → Show manifest → Replace contents
+
+2. addon-lifecycle.gs (NEW FILE)
+   Location: /Users/leeke/clientmanagement/addon-lifecycle.gs
+   Purpose: Homepage cards, welcome screen, add-on lifecycle
+   How: Click + next to Files → Script → Name: addon-lifecycle
+
+3. cardservice-ui.gs (EXISTING)
+   Location: /Users/leeke/clientmanagement/cardservice-ui.gs
+   Purpose: All CardService UI cards and navigation
+   How: Click + → Script → Name: cardservice-ui
+
+4. cardservice-helpers.gs (EXISTING)
+   Location: /Users/leeke/clientmanagement/cardservice-helpers.gs
+   Purpose: Backend functions (clients, notes, email)
+   How: Click + → Script → Name: cardservice-helpers
+
+5. feature-flags.gs (EXISTING)
+   Location: /Users/leeke/clientmanagement/feature-flags.gs
+   Purpose: Feature toggles, performance logging
+   How: Click + → Script → Name: feature-flags
+
+6. Code.gs (UPDATE EXISTING)
+   Purpose: Main entry points for add-on
+   How: Replace contents with simple entry point code (see guide)
+
+
+🚀 QUICK START PROCESS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Step 1: Create Standalone Project
+  → Go to: https://script.google.com
+  → Click: New project
+  → Rename: "Client Manager Add-on"
+
+Step 2: Enable Manifest
+  → Project Settings → Show "appsscript.json" manifest file
+  → Go back to Editor tab
+
+Step 3: Upload Files (in order above)
+  → 15 minutes total
+  → Copy/paste contents from each file
+
+Step 4: Test
+  → Deploy → Test deployments → Install
+  → Open any Google Sheet
+  → Click puzzle icon (🧩)
+  → Should see "Client Manager"
+
+Step 5: Deploy for Team
+  → Deploy → New deployment → Type: Add-on
+  → Share Deployment ID with team
+
+
+📋 WHAT YOU GET
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Standalone add-on (not tied to one sheet)
+✅ CardService native UI (works properly)
+✅ 40-50% faster than HTML
+✅ Works across multiple spreadsheets
+✅ Can be installed by internal users
+✅ Auto-updates when you deploy new versions
+✅ Mobile-friendly native cards
+✅ Professional add-on experience
+
+
+🔄 DEPLOYMENT OPTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Option 1: Test Deployment (Quick)
+  • For: Small teams, testing
+  • Time: 5 minutes
+  • Users: Share Deployment ID
+  • Updates: Automatic
+
+Option 2: Internal Deployment (Recommended)
+  • For: Organization-wide
+  • Time: 30 minutes (includes admin approval)
+  • Users: Install from Extensions menu
+  • Updates: Automatic
+  • Professional: Yes
+
+Option 3: Public Marketplace (Not recommended for internal)
+  • For: Public distribution
+  • Time: Days/weeks
+  • Requires: OAuth verification ($$$)
+
+
+📚 DOCUMENTATION CREATED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. ADDON_QUICK_START.md ⭐ START HERE (15 minutes)
+   → Step-by-step quick guide
+   → All commands and code snippets
+   → Testing checklist
+
+2. WORKSPACE_ADDON_DEPLOYMENT.md (Complete reference)
+   → Detailed deployment guide
+   → All deployment options explained
+   → Troubleshooting section
+   → User installation instructions
+   → Admin approval process
+
+3. appsscript.json (Manifest file)
+   → Add-on configuration
+   → Triggers and permissions
+   → Ready to use
+
+4. addon-lifecycle.gs (New file)
+   → Homepage cards
+   → Welcome screen
+   → File scope handling
+   → Add-on lifecycle hooks
+
+
+⚡ 15-MINUTE DEPLOYMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Create standalone project            (2 min)
+2. Enable manifest                      (1 min)
+3. Upload appsscript.json              (2 min)
+4. Upload 5 script files               (5 min)
+5. Test deployment                     (2 min)
+6. Deploy for team                     (3 min)
+                                       ─────────
+Total:                                 15 minutes
+
+
+🎯 NEXT STEPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Read ADDON_QUICK_START.md
+2. Follow 15-minute guide
+3. Test with your account
+4. Deploy to team
+5. Share installation instructions
+
+
+🔗 KEY FILES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Must Upload:
+  ✓ appsscript.json
+  ✓ addon-lifecycle.gs
+  ✓ cardservice-ui.gs
+  ✓ cardservice-helpers.gs
+  ✓ feature-flags.gs
+  ✓ Code.gs (update)
+
+Optional (HTML fallback):
+  ◯ quick-notes.html (if you want HTML Quick Notes dialog)
+
+
+💡 WHY THIS IS BETTER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Container-Bound Script:
+  • Tied to one spreadsheet
+  • CardService doesn't work
+  • Manual sharing required
+  • HTML UI only
+  • Each user needs their own copy
+
+Workspace Add-on:
+  • Works with any spreadsheet
+  • CardService works perfectly
+  • Easy installation for team
+  • Native UI (fast!)
+  • One add-on for entire org
+  • Auto-updates
+
+
+📞 SUPPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Documentation:
+  • ADDON_QUICK_START.md (15-min guide)
+  • WORKSPACE_ADDON_DEPLOYMENT.md (complete reference)
+
+Google Docs:
+  • https://developers.google.com/workspace/add-ons
+
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                   ⭐ START: ADDON_QUICK_START.md ⭐                         ║
+║                                                                            ║
+║  Everything you need to convert in 15 minutes                             ║
+╚════════════════════════════════════════════════════════════════════════════╝

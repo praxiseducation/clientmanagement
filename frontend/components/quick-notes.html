@@ -1,0 +1,292 @@
+<!-- Quick Notes View Component -->
+<div class="quick-notes-container">
+  <!-- Header with Save Button -->
+  <div class="view-header">
+    <button class="back-button" onclick="switchToControlPanel()" title="Back to Home">
+      <span style="font-size: 20px;">←</span>
+    </button>
+    <h2 class="view-title">Quick Notes</h2>
+    <button class="save-button" id="saveQuickNotesBtn" onclick="saveQuickNotes()" style="display: flex; margin-left: auto;">
+      <span class="save-text" id="saveNotesText">Save</span>
+      <div class="save-spinner"></div>
+    </button>
+  </div>
+
+  <!-- Current Client Info -->
+  <div class="current-client" style="margin-bottom: 15px;">
+    <div class="current-client-label">Session for:</div>
+    <div id="quickNotesClientName" class="current-client-name">Loading...</div>
+  </div>
+
+  <!-- Keyboard Shortcuts Help -->
+  <div class="keyboard-shortcuts-hint" style="margin: 0 20px 15px; padding: 10px; background: #f8f9fa; border-radius: 6px; font-size: 12px; color: #5f6368;">
+    <strong>Keyboard Shortcuts:</strong>
+    Ctrl+S to save • Ctrl+1-4 to insert quick buttons • Alt+Q for quick save • Esc to close modal
+  </div>
+
+  <!-- Structured Quick Notes Sections -->
+  <div class="quick-notes-sections">
+    <!-- Wins Section -->
+    <div class="note-container" data-section="wins">
+      <div class="note-header">
+        <div class="note-title">
+          <span class="note-icon">🏆</span>
+          <span>Today's Wins</span>
+        </div>
+        <button class="settings-wheel" onclick="openQuickButtonSettings('wins')" title="Customize Quick Buttons">
+          <span>⚙️</span>
+        </button>
+      </div>
+      <div class="note-content">
+        <textarea id="wins" class="notes-textarea" placeholder="What went well today?" tabindex="1"></textarea>
+        <div id="winsButtons" class="pill-button-container" aria-label="Quick buttons for wins"></div>
+      </div>
+    </div>
+
+    <!-- Skills Mastered Section -->
+    <div class="note-container" data-section="skillsMastered">
+      <div class="note-header">
+        <div class="note-title">
+          <span class="note-icon">✅</span>
+          <span>Skills Mastered</span>
+        </div>
+        <button class="settings-wheel" onclick="openQuickButtonSettings('skillsMastered')" title="Customize Quick Buttons">
+          <span>⚙️</span>
+        </button>
+      </div>
+      <div class="note-content">
+        <textarea id="skillsMastered" class="notes-textarea" placeholder="Skills the student has mastered" tabindex="2"></textarea>
+        <div id="skillsMasteredButtons" class="pill-button-container" aria-label="Quick buttons for skills mastered"></div>
+      </div>
+    </div>
+
+    <!-- Skills Practiced Section -->
+    <div class="note-container" data-section="skillsPracticed">
+      <div class="note-header">
+        <div class="note-title">
+          <span class="note-icon">🔄</span>
+          <span>Skills Practiced</span>
+        </div>
+        <button class="settings-wheel" onclick="openQuickButtonSettings('skillsPracticed')" title="Customize Quick Buttons">
+          <span>⚙️</span>
+        </button>
+      </div>
+      <div class="note-content">
+        <textarea id="skillsPracticed" class="notes-textarea" placeholder="Skills practiced during session" tabindex="3"></textarea>
+        <div id="skillsPracticedButtons" class="pill-button-container" aria-label="Quick buttons for skills practiced"></div>
+      </div>
+    </div>
+
+    <!-- Skills Introduced Section -->
+    <div class="note-container" data-section="skillsIntroduced">
+      <div class="note-header">
+        <div class="note-title">
+          <span class="note-icon">🆕</span>
+          <span>Skills Introduced</span>
+        </div>
+        <button class="settings-wheel" onclick="openQuickButtonSettings('skillsIntroduced')" title="Customize Quick Buttons">
+          <span>⚙️</span>
+        </button>
+      </div>
+      <div class="note-content">
+        <textarea id="skillsIntroduced" class="notes-textarea" placeholder="New skills introduced today" tabindex="4"></textarea>
+        <div id="skillsIntroducedButtons" class="pill-button-container" aria-label="Quick buttons for skills introduced"></div>
+      </div>
+    </div>
+
+    <!-- Struggles Section -->
+    <div class="note-container" data-section="struggles">
+      <div class="note-header">
+        <div class="note-title">
+          <span class="note-icon">⚠️</span>
+          <span>Struggles</span>
+        </div>
+        <button class="settings-wheel" onclick="openQuickButtonSettings('struggles')" title="Customize Quick Buttons">
+          <span>⚙️</span>
+        </button>
+      </div>
+      <div class="note-content">
+        <textarea id="struggles" class="notes-textarea" placeholder="Areas where student struggled" tabindex="5"></textarea>
+        <div id="strugglesButtons" class="pill-button-container" aria-label="Quick buttons for struggles"></div>
+      </div>
+    </div>
+
+    <!-- Parent Communication Section -->
+    <div class="note-container" data-section="parent">
+      <div class="note-header">
+        <div class="note-title">
+          <span class="note-icon">👨‍👩‍👧‍👦</span>
+          <span>Parent Communication</span>
+        </div>
+        <button class="settings-wheel" onclick="openQuickButtonSettings('parent')" title="Customize Quick Buttons">
+          <span>⚙️</span>
+        </button>
+      </div>
+      <div class="note-content">
+        <textarea id="parent" class="notes-textarea" placeholder="Notes for parents" tabindex="6"></textarea>
+        <div id="parentButtons" class="pill-button-container" aria-label="Quick buttons for parent communication"></div>
+      </div>
+    </div>
+
+    <!-- Next Session Section -->
+    <div class="note-container" data-section="next">
+      <div class="note-header">
+        <div class="note-title">
+          <span class="note-icon">📅</span>
+          <span>Next Session</span>
+        </div>
+        <button class="settings-wheel" onclick="openQuickButtonSettings('next')" title="Customize Quick Buttons">
+          <span>⚙️</span>
+        </button>
+      </div>
+      <div class="note-content">
+        <textarea id="next" class="notes-textarea" placeholder="Plans for next session" tabindex="7"></textarea>
+        <div id="nextButtons" class="pill-button-container" aria-label="Quick buttons for next session"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Action Section -->
+  <div class="section">
+    <div class="section-title">
+      <span class="section-icon">📝</span>
+      Actions
+    </div>
+    <button class="menu-button primary" onclick="openSessionRecap()" tabindex="8">
+      <span class="icon">✉️</span>
+      Send Session Recap
+    </button>
+    <button class="menu-button" onclick="loadSavedNotes()" tabindex="9">
+      <span class="icon">🔄</span>
+      Reload Saved Notes
+    </button>
+    <button class="menu-button" onclick="openQuickNotesSettings()" tabindex="10">
+      <span class="icon">⚙️</span>
+      Global Settings
+    </button>
+    <button class="menu-button" onclick="QuickNotes.refresh()" tabindex="11">
+      <span class="icon">🔄</span>
+      Refresh Cache
+    </button>
+    <button class="menu-button" onclick="clearQuickNotes()" style="color: #d93025; border-color: #d93025;" tabindex="12">
+      <span class="icon">🗑️</span>
+      Clear All Notes
+    </button>
+  </div>
+
+  <!-- Quick Button Settings Modal -->
+  <div id="quickButtonModal" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modalTitle">Customize Quick Buttons</h3>
+        <button class="modal-close" onclick="closeQuickButtonModal()" aria-label="Close modal">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-description">
+          Create up to 4 quick buttons for this section. Available placeholders:
+        </p>
+        <ul class="placeholder-list" style="font-size: 13px; color: #5f6368; margin: 10px 0 16px;">
+          <li><code>[userFirstName]</code> - Student's first name</li>
+          <li><code>[date]</code> - Today's date</li>
+          <li><code>[time]</code> - Current time</li>
+          <li><code>[day]</code> - Day of the week</li>
+        </ul>
+
+        <div class="quick-button-editor">
+          <div class="button-input-group">
+            <label for="buttonText1">Button 1:</label>
+            <input type="text" id="buttonText1" placeholder="Button text (e.g., 'Great focus')" maxlength="30">
+            <textarea id="buttonContent1" placeholder="Text to insert (e.g., '[userFirstName] showed great focus today!')" rows="2"></textarea>
+          </div>
+
+          <div class="button-input-group">
+            <label for="buttonText2">Button 2:</label>
+            <input type="text" id="buttonText2" placeholder="Button text" maxlength="30">
+            <textarea id="buttonContent2" placeholder="Text to insert" rows="2"></textarea>
+          </div>
+
+          <div class="button-input-group">
+            <label for="buttonText3">Button 3:</label>
+            <input type="text" id="buttonText3" placeholder="Button text" maxlength="30">
+            <textarea id="buttonContent3" placeholder="Text to insert" rows="2"></textarea>
+          </div>
+
+          <div class="button-input-group">
+            <label for="buttonText4">Button 4:</label>
+            <input type="text" id="buttonText4" placeholder="Button text" maxlength="30">
+            <textarea id="buttonContent4" placeholder="Text to insert" rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-button secondary" onclick="closeQuickButtonModal()">Cancel</button>
+        <button class="modal-button primary" onclick="saveQuickButtons()">Save Buttons</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Include CSS -->
+<?!= include('frontend/css/quick-notes.css'); ?>
+
+<!-- Include optimized JavaScript -->
+<script src="<?!= include('frontend/js/quick-notes.js'); ?>"></script>
+
+<!-- Auto-save indicator overlay -->
+<style>
+  .auto-save-indicator {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 8px 12px;
+    background: #e8f0fe;
+    color: #1a73e8;
+    border-radius: 20px;
+    font-size: 12px;
+    display: none;
+    animation: fadeIn 0.3s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .auto-save-indicator.visible {
+    display: block;
+  }
+
+  .keyboard-shortcuts-hint {
+    animation: slideDown 0.3s ease;
+  }
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .placeholder-list {
+    list-style: none;
+    padding-left: 0;
+  }
+
+  .placeholder-list li {
+    padding: 2px 0;
+  }
+
+  .placeholder-list code {
+    background: #f8f9fa;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 13px;
+    color: #1a73e8;
+  }
+</style>

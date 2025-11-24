@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <?!= include('frontend/css/sidebar.css'); ?>
+  </head>
+  <body>
+
+    <script>
+    // Essential functions defined inline to avoid scope issues
+    function switchView(viewId) {
+      // Hide all views
+      const views = document.querySelectorAll('.view');
+      views.forEach(view => view.classList.remove('active'));
+
+      // Show the selected view with smooth transition
+      const targetView = document.getElementById(viewId);
+      if (targetView) {
+        // Use requestAnimationFrame for smooth transition
+        requestAnimationFrame(() => {
+          targetView.classList.add('active');
+        });
+      }
+    }
+
+    function switchToControlPanel() {
+      switchView('controlView');
+    }
+
+    function showClientList() {
+      switchView('clientListView');
+    }
+
+    function switchToQuickNotes() {
+      switchView('quickNotesView');
+    }
+    </script>
+
+    <!-- Main Container -->
+    <div class="sidebar-container">
+      <!-- Control Panel View -->
+    <div id="controlView" class="view active">
+      <? if (isEnterprise && userInfo) { ?>
+      <!-- User Information (Enterprise) -->
+      <div class="user-info">
+        <div class="user-name" onclick="editUserName()" title="Click to edit">
+          <span><?= userInfo.displayName || userInfo.email.split('@')[0] ?></span>
+        </div>
+        <div class="user-role"><?= userRole ?></div>
+      </div>
+      <? } ?>
+      
+      <!-- Current Client -->
+      <div class="current-client">
+        <div class="current-client-label">Current Client:</div>
+        <div id="clientName" class="<?= clientInfo.isClient ? 'current-client-name' : 'no-client' ?>">
+          <?= clientInfo.isClient ? clientInfo.name : 'No client selected' ?>
+        </div>
+      </div>
+      
+      <!-- Client Management Section -->
+      <div class="section">
+        <div class="section-title">
+          <span class="section-icon">👥</span>
+          Client Management
+        </div>
+        
+        <!-- Enhanced Search Bar with Dropdown -->
+        <div class="search-container">
+          <input type="text" class="search-bar" id="clientSearchBar" 
+            placeholder="Search for a client..." 
+            oninput="searchClients(this.value)" 
+            onfocus="showSearchDropdown()" 
+            onblur="hideSearchDropdown()">
+          <div id="searchDropdown" class="search-dropdown"></div>
+        </div>
+        
+        <button class="menu-button primary" onclick="openNewClientDialog(this)">
+          <span class="icon">➕</span>
+          Add New Client
+        </button>
+        <button class="menu-button" onclick="showClientList()">
+          <span class="icon">📋</span>
+          View All Clients
+        </button>
+        <? if (clientInfo.isClient) { ?>
+        <button class="menu-button" onclick="openUpdateClientDialog()">
+          <span class="icon">⚙️</span>
+          Update Client Info
+        </button>
+        <? } ?>
+      </div>
+      
+      <!-- Session Management Section -->
+      <div class="section">
+        <div class="section-title">
+          <span class="section-icon">📝</span>
+          Session Management
+        </div>
+        <button id="quickNotesBtn" class="menu-button" onclick="switchToQuickNotes()" <?= !clientInfo.isClient ? 'disabled' : '' ?>>
+          <span class="icon">📝</span>
+          Quick Notes
+        </button>
+        <button id="recapBtn" class="menu-button" onclick="runFunction('<?= isEnterprise ? 'sendEmailSecure' : 'sendIndividualRecap' ?>', this)" <?= !clientInfo.isClient ? 'disabled' : '' ?>>
+          <span class="icon">✉️</span>
+          Send Session Recap
+        </button>
+      </div>
+      
+      <!-- External Tools Section -->
+      <div class="section">
+        <div class="section-title">
+          <span class="section-icon">🔗</span>
+          External Tools
+        </div>
+        <button class="menu-button" onclick="window.open('https://secure.acuityscheduling.com/admin/clients', '_blank')">
+          <span class="icon">📅</span>
+          Open Acuity
+        </button>
+      </div>
+      
+      <? if (isEnterprise && (userRole === 'admin' || userRole === 'supervisor')) { ?>
+      <!-- Admin Section (Enterprise) -->
+      <div class="section">
+        <div class="section-title">
+          <span class="section-icon">⚙️</span>
+          Administration
+        </div>
+        <button class="menu-button admin-only" onclick="runFunction('showEnterpriseAdminDashboard', this)">
+          <span class="icon">🏢</span>
+          Admin Dashboard
+        </button>
+        <button class="menu-button admin-only" onclick="runFunction('showOrganizationDashboard', this)">
+          <span class="icon">🏗️</span>
+          Organization Dashboard
+        </button>
+        <button class="menu-button" onclick="runFunction('runSystemMaintenance', this)">
+          <span class="icon">🔧</span>
+          System Maintenance
+        </button>
+        <button class="menu-button" onclick="runFunction('generateComplianceReportDialog', this)">
+          <span class="icon">📋</span>
+          Compliance Report
+        </button>
+      </div>
+      <? } ?>
+      
+      <!-- Messages -->
+      <div class="message error" id="error"></div>
+      <div class="message success" id="success"></div>
+      
+      <!-- Version Info -->
+      <div class="version-info">
+        <div>Universal Sidebar v<?= CONFIG.version ?> (<?= CONFIG.build ?>)</div>
+      </div>
+    </div>
+    
+    <!-- Quick Notes View -->
+    <div id="quickNotesView" class="view">
+      <?!= include('frontend/components/quick-notes.html'); ?>
+    </div>
+    
+    <!-- Client List View -->
+    <div id="clientListView" class="view">
+      <?!= include('frontend/components/client-list'); ?>
+    </div>
+
+    <!-- Connection Status Banner -->
+    <div id="connectionStatus" class="connection-status">
+      <span class="status-icon">⚠️</span>
+      <span class="status-message">Connection lost. Working offline...</span>
+    </div>
+
+    </div> <!-- End sidebar-container -->
+
+    <?!= include('frontend/js/sidebar-main.js'); ?>
+  </body>
+</html>
